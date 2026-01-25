@@ -79,6 +79,12 @@ textarea{resize:vertical}
   justify-content:flex-end;
 }
 
+.actions-inline{
+  display:flex;
+  gap:8px;
+  margin-top:8px;
+}
+
 button{
   background:linear-gradient(180deg,var(--accent), #0ea5c9);
   color:#022;
@@ -88,6 +94,41 @@ button{
   cursor:pointer;
   font-weight:600;
 }
+
+button.ghost{
+  background:transparent;
+  color:var(--accent);
+  border:1px solid rgba(255,255,255,0.03);
+  padding:8px 12px;
+}
+
+.skin-entry{
+  border:1px dashed rgba(255,255,255,0.03);
+  padding:8px;
+  margin-bottom:8px;
+  border-radius:6px;
+  display:grid;
+  grid-template-columns: 1fr 120px;
+  gap:8px;
+  align-items:center;
+}
+
+.skin-entry .left{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.skin-entry .right{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  align-items:flex-end;
+}
+
+.skin-entry small{color:var(--muted)}
+
+.muted{color:var(--muted);font-size:13px}
 
 .status{
   margin-top:12px;
