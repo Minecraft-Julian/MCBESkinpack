@@ -5,13 +5,15 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MCBE Skinpack Generator</title>
   <link rel="stylesheet" href="style.css" />
-  <!-- JSZip from CDN -->
+  <!-- JSZip & Three.js from CDN -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
 </head>
 <body>
   <main class="container">
     <h1>Minecraft Bedrock Skinpack Generator</h1>
-    <p class="lead">Beim Laden der Seite wird ein Platzhalter-Skinpack automatisch erzeugt (Download). Du kannst danach alle Felder anpassen und ein neues Pack erzeugen.</p>
+    <p class="lead">Beim Laden der Seite wird ein Platzhalter-Skinpack erzeugt. Passe danach Felder an und lade ein eigenes Pack herunter.</p>
 
     <form id="packForm" class="form" autocomplete="off">
       <fieldset>
@@ -33,11 +35,11 @@
 
       <fieldset>
         <legend>Skins (mehrere möglich)</legend>
-        <div id="skinsContainer"></div>
+        <div id="skinsContainer" aria-live="polite"></div>
         <div class="actions-inline">
           <button type="button" id="addSkinBtn" class="ghost">Skin hinzufügen</button>
         </div>
-        <p class="muted">Jeder Skin hat eine Vorschau. Du kannst eine eigene PNG hochladen — ansonsten wird das Platzhalterbild verwendet.</p>
+        <p class="muted">Jeder Skin braucht einen Namen und eine PNG-Datei (64×32, 64×64 oder 128×128). Die Vorschau zeigt ein drehbares Modell.</p>
       </fieldset>
 
       <fieldset>
@@ -58,6 +60,13 @@
       <p>Kleines Tool • Läuft komplett im Browser • Manifest Version: 2 • Min engine version: 1.20.0</p>
     </footer>
   </main>
+
+  <!-- Fullscreen viewer overlay -->
+  <div id="viewerOverlay" class="viewer-overlay" hidden>
+    <div id="viewerBox" class="viewer-box" role="dialog" aria-modal="true">
+      <div id="viewerCanvasContainer" class="viewer-canvas"></div>
+    </div>
+  </div>
 
   <script src="script.js"></script>
 </body>
