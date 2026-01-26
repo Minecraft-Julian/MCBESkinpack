@@ -83,6 +83,7 @@ button.ghost{ background:transparent; color:var(--accent); border:1px solid rgba
   position:relative;
 }
 
+<<<<<<< HEAD
 /* canvas previews fill container */
 .preview canvas { width:100%; height:100%; display:block; }
 
@@ -108,6 +109,20 @@ button.ghost{ background:transparent; color:var(--accent); border:1px solid rgba
 
 .viewer-box{
   background: #0b1220;
+=======
+.actions-inline{
+  display:flex;
+  gap:8px;
+  margin-top:8px;
+  align-items:center;
+}
+
+button{
+  background:linear-gradient(180deg,var(--accent), #0ea5c9);
+  color:#022;
+  border:none;
+  padding:10px 16px;
+>>>>>>> a320fc4ed65e7a5c83121dbcc721f4801fab08c4
   border-radius:8px;
   padding:10px;
   width:92%;
@@ -120,6 +135,7 @@ button.ghost{ background:transparent; color:var(--accent); border:1px solid rgba
   overflow:hidden;
 }
 
+<<<<<<< HEAD
 /* viewer canvas */
 .viewer-canvas { width:100%; height:100%; }
 .viewer-canvas canvas { width:100%; height:100%; display:block; }
@@ -129,3 +145,66 @@ button.ghost{ background:transparent; color:var(--accent); border:1px solid rgba
   .skin-entry{ grid-template-columns: 100px 1fr 100px; }
   .preview{ width:100px; height:100px; }
 }
+=======
+button.ghost{
+  background:transparent;
+  color:var(--accent);
+  border:1px solid rgba(255,255,255,0.03);
+  padding:8px 12px;
+}
+
+.skin-entry{
+  border:1px dashed rgba(255,255,255,0.03);
+  padding:8px;
+  margin-bottom:8px;
+  border-radius:6px;
+  display:grid;
+  grid-template-columns: 80px 1fr 120px;
+  gap:8px;
+  align-items:center;
+}
+
+.preview{
+  width:80px;
+  height:80px;
+  background:rgba(255,255,255,0.02);
+  border-radius:6px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+}
+
+.preview img{ width:100%; height:100%; object-fit:cover }
+
+.skin-entry .middle{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.skin-entry .right{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  align-items:flex-end;
+}
+
+.skin-entry small{color:var(--muted)}
+
+.muted{color:var(--muted);font-size:13px}
+
+.status{
+  margin-top:12px;
+  color:var(--muted);
+  font-size:14px;
+  white-space:pre-wrap;
+}
+
+.footer{
+  margin-top:16px;
+  color:var(--muted);
+  font-size:13px;
+  text-align:center;
+}
+>>>>>>> a320fc4ed65e7a5c83121dbcc721f4801fab08c4
