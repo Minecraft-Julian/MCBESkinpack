@@ -5,15 +5,13 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>MCBE Skinpack Generator</title>
   <link rel="stylesheet" href="style.css" />
-  <!-- JSZip & Three.js from CDN -->
+  <!-- JSZip von CDN -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
-  <script src="https://unpkg.com/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
 </head>
 <body>
   <main class="container">
     <h1>Minecraft Bedrock Skinpack Generator</h1>
-    <p class="lead">Beim Laden der Seite wird ein Platzhalter-Skinpack erzeugt. Passe danach Felder an und lade ein eigenes Pack herunter.</p>
+    <p class="lead">Beim Laden werden Platzhalter-Skins erzeugt (großes "X"). Du kannst danach Skins hochladen, Sprache wählen und ein finalen Pack erzeugen.</p>
 
     <form id="packForm" class="form" autocomplete="off">
       <fieldset>
@@ -39,7 +37,7 @@
         <div class="actions-inline">
           <button type="button" id="addSkinBtn" class="ghost">Skin hinzufügen</button>
         </div>
-        <p class="muted">Jeder Skin braucht einen Namen und eine PNG-Datei (64×32, 64×64 oder 128×128). Die Vorschau zeigt ein drehbares Modell.</p>
+        <p class="muted">Jeder Skin braucht einen Namen und eine PNG-Datei (64×32, 64×64 oder 128×128). Vorschau: drehendes Platzhalter-X oder dein hochgeladenes Bild.</p>
       </fieldset>
 
       <fieldset>
@@ -64,7 +62,7 @@
   <!-- Fullscreen viewer overlay -->
   <div id="viewerOverlay" class="viewer-overlay" hidden>
     <div id="viewerBox" class="viewer-box" role="dialog" aria-modal="true">
-      <div id="viewerCanvasContainer" class="viewer-canvas"></div>
+      <img id="viewerImage" class="viewer-image" alt="Skin Preview (Fullscreen)"/>
     </div>
   </div>
 
