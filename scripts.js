@@ -1,7 +1,7 @@
-// Erweiterte Version: mehrere Skins & große Sprachliste
+// Auto-Generator: erzeugt bei Seitenaufruf ein .mcpack (keine Benutzerinteraktion nötig)
 // Benötigt: JSZip (global JSZip)
 
-// Utility: safe filename
+// Utility: sichere Dateinamen
 function safeFileName(name) {
   return (name || 'skinpack')
     .replace(/\s+/g, '-')
@@ -11,176 +11,122 @@ function safeFileName(name) {
     .slice(0, 64) || 'skinpack';
 }
 
-// UUID generator with fallback
+// UUID Generator (crypto.randomUUID() wenn vorhanden)
 function makeUUID() {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  function rnd(n){ return Math.floor(Math.random()*n).toString(16).padStart(2,'0'); }
-  let bytes = new Array(16).fill(0).map(() => Math.floor(Math.random()*256));
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  // kleiner RFC4122 v4 Fallback
+  const bytes = new Array(16).fill(0).map(() => Math.floor(Math.random() * 256));
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  return [...bytes].map((b,i)=> (i===4||i===6||i===8||i===10? '-' : '') + b.toString(16).padStart(2,'0')).join('');
+  return [...bytes].map((b, i) => (i === 4 || i === 6 || i === 8 || i === 10 ? '-' : '') + b.toString(16).padStart(2, '0')).join('');
 }
 
-// DOM refs
-const form = document.getElementById('packForm');
-const statusEl = document.getElementById('status');
-const skinsContainer = document.getElementById('skinsContainer');
-const addSkinBtn = document.getElementById('addSkinBtn');
-const languageSelect = document.getElementById('language');
-
-const LANGS = [
-  "en_US","de_DE","fr_FR","es_ES","it_IT","pt_BR","ru_RU",
-  "zh_CN","zh_TW","ja_JP","ko_KR","nl_NL","pl_PL","tr_TR",
-  "sv_SE","da_DK","fi_FI","nb_NO","cs_CZ","hu_HU","ro_RO",
-  "ar_SA","he_IL","vi_VN","id_ID","th_TH","uk_UA","sr_RS",
-  "hr_HR","lt_LT","lv_LV","sk_SK","sl_SI","el_GR","bg_BG"
-];
-
-// Populate language select
-function populateLanguages() {
-  LANGS.forEach(l => {
-    const o = document.createElement('option');
-    o.value = l;
-    o.textContent = l;
-    languageSelect.appendChild(o);
-  });
-  languageSelect.value = 'en_US';
+// Random hex string
+function randHex(len = 6) {
+  const chars = '0123456789abcdef';
+  let s = '';
+  for (let i = 0; i < len; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
 }
 
-// Skin entry template
-let skinIndex = 0;
-function createSkinEntry({name = '', file = null} = {}) {
-  const idx = skinIndex++;
-  const root = document.createElement('div');
-  root.className = 'skin-entry';
-  root.dataset.idx = idx;
+// Erzeuge ein Platzhalter-Skin als PNG via Canvas (Promise<ArrayBuffer>)
+function createPlaceholderSkinPNG(width = 64, height = 64, color = null, drawX = true) {
+  return new Promise((resolve, reject) => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
 
-  const left = document.createElement('div');
-  left.className = 'left';
-  const right = document.createElement('div');
-  right.className = 'right';
+      // Hintergrundfarbe zufällig wenn nicht übergeben
+      const bg = color || `hsl(${Math.floor(Math.random() * 360)}, 60%, 60%)`;
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, width, height);
 
-  // name
-  const nameLabel = document.createElement('label');
-  nameLabel.textContent = 'Skin-Name';
-  const nameInput = document.createElement('input');
-  nameInput.type = 'text';
-  nameInput.placeholder = 'MeinSkin';
-  nameInput.value = name;
-  nameInput.required = true;
+      // optional: großes X (als Platzhalter, wie in deiner Beispielgrafik)
+      if (drawX) {
+        ctx.strokeStyle = '#111';
+        ctx.lineWidth = Math.max(4, Math.floor(width / 12));
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(width * 0.15, height * 0.15);
+        ctx.lineTo(width * 0.85, height * 0.85);
+        ctx.moveTo(width * 0.85, height * 0.15);
+        ctx.lineTo(width * 0.15, height * 0.85);
+        ctx.stroke();
+      }
 
-  // file
-  const fileLabel = document.createElement('label');
-  fileLabel.textContent = 'Skin PNG';
-  const fileInput = document.createElement('input');
-  fileInput.type = 'file';
-  fileInput.accept = 'image/png';
-  if (file) {
-    // cannot set File programmatically; user will re-add if needed
-  }
+      // kleiner Text (kurzer Hash) zur Unterscheidung
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.font = `${Math.max(8, Math.floor(width / 8))}px sans-serif`;
+      ctx.textAlign = 'right';
+      ctx.fillText(randHex(3), width - 4, height - 6);
 
-  // small helper
-  const small = document.createElement('small');
-  small.textContent = 'Empfohlen: 64×64 oder 64×32';
-
-  left.appendChild(nameLabel);
-  left.appendChild(nameInput);
-  left.appendChild(fileLabel);
-  left.appendChild(fileInput);
-  left.appendChild(small);
-
-  // type (fixed)
-  const typeLabel = document.createElement('label');
-  typeLabel.textContent = 'Typ';
-  const typeInput = document.createElement('input');
-  typeInput.type = 'text';
-  typeInput.value = 'free';
-  typeInput.readOnly = true;
-
-  // remove button
-  const removeBtn = document.createElement('button');
-  removeBtn.type = 'button';
-  removeBtn.className = 'ghost';
-  removeBtn.textContent = 'Entfernen';
-  removeBtn.addEventListener('click', () => {
-    skinsContainer.removeChild(root);
-  });
-
-  right.appendChild(typeLabel);
-  right.appendChild(typeInput);
-  right.appendChild(removeBtn);
-
-  root.appendChild(left);
-  root.appendChild(right);
-
-  skinsContainer.appendChild(root);
-
-  return {root, nameInput, fileInput, typeInput};
-}
-
-// Initialize UI
-populateLanguages();
-createSkinEntry();
-
-// Add skin button
-addSkinBtn.addEventListener('click', () => createSkinEntry());
-
-// Gather skins from DOM
-function gatherSkins() {
-  const entries = Array.from(skinsContainer.querySelectorAll('.skin-entry'));
-  const skins = [];
-  for (const e of entries) {
-    const nameInput = e.querySelector('input[type="text"]');
-    const fileInput = e.querySelector('input[type="file"]');
-    const typeInput = e.querySelector('input[readonly]');
-    const name = nameInput ? nameInput.value.trim() : '';
-    const files = fileInput ? fileInput.files : null;
-    if (!name || !files || files.length === 0) {
-      // skip incomplete entries
-      continue;
+      canvas.toBlob(async (blob) => {
+        if (!blob) return reject(new Error('Blob creation failed'));
+        const ab = await blob.arrayBuffer();
+        resolve(ab);
+      }, 'image/png');
+    } catch (e) {
+      reject(e);
     }
-    skins.push({
-      name,
-      file: files[0],
-      type: typeInput ? (typeInput.value || 'free') : 'free'
-    });
-  }
-  return skins;
+  });
 }
 
-// Form submit -> build pack
-form.addEventListener('submit', async (ev) => {
-  ev.preventDefault();
-  statusEl.textContent = 'Erzeuge Skinpack...';
+// Statusanzeige
+function setStatus(text) {
+  const el = document.getElementById('status');
+  if (el) el.textContent = text;
+  console.log('[mcbe]', text);
+}
 
-  const packName = document.getElementById('packName').value.trim() || 'skinpack';
-  const packDesc = document.getElementById('packDesc').value.trim() || '';
-  const lang = document.getElementById('language').value || 'en_US';
-
-  const skins = gatherSkins();
-  if (skins.length === 0) {
-    statusEl.textContent = 'Bitte mindestens einen vollständigen Skin (Name + PNG) hinzufügen.';
-    return;
-  }
-
+// Hauptfunktion: erstellt das Pack und startet Download
+async function buildAndDownloadPack() {
   try {
-    // Read skin files into array buffers
-    statusEl.textContent = 'Lese Skin-Dateien...';
+    setStatus('Starte Erzeugung des Skinpacks...');
+
+    if (typeof JSZip === 'undefined') {
+      setStatus('Fehler: JSZip nicht geladen. ZIP-Erzeugung nicht möglich.');
+      return;
+    }
+
+    // Pack-Metadaten (alles "X"-artige Werte werden hier zufällig erzeugt)
+    const packBase = `skinpack-${randHex(6)}`;
+    const packName = `Pack ${randHex(4)}`; // sichtbar name
+    const packDesc = `Automatisch erzeugtes Skinpack ${randHex(5)}`;
+    const lang = 'en_US'; // du kannst hier auch languages.json einlesen, standard: en_US
+
+    setStatus(`Erzeuge Pack: ${packBase} (${packName})`);
+
+    // Anzahl der Skins - wir erzeugen 2 (entspricht deinen beiden Beispielbildern)
+    const skinCount = 2;
+    const skins = [];
+    for (let i = 0; i < skinCount; i++) {
+      const skinName = `Skin-${randHex(4)}`;
+      const safeSkinName = safeFileName(skinName);
+      const textureFile = `skin-${i + 1}.png`;
+      skins.push({
+        name: skinName,
+        safeName: safeSkinName,
+        texture: textureFile,
+        geometry: 'geometry.humanoid.customSlim',
+        type: 'free'
+      });
+    }
+
+    // Erzeuge Platzhalter-PNGs (ArrayBuffer)
+    setStatus('Erzeuge Skin-PNGs als Platzhalter...');
     const skinBuffers = [];
-    for (const s of skins) {
-      const ab = await s.file.arrayBuffer();
+    for (let i = 0; i < skins.length; i++) {
+      const ab = await createPlaceholderSkinPNG(64, 64, null, true);
       skinBuffers.push(ab);
     }
 
-    // Prepare names and UUIDs
-    const safePack = safeFileName(packName) || 'skinpack';
-    const rootFolderName = `${safePack}.mcpack/`;
+    // UUIDs
     const packUuid = makeUUID();
     const moduleUuid = makeUUID();
 
-    // manifest.json (format_version: 2)
+    // manifest.json (format_version: 2, min_engine_version: 1.20.0)
     const manifest = {
       format_version: 2,
       header: {
@@ -199,81 +145,70 @@ form.addEventListener('submit', async (ev) => {
       ]
     };
 
-    // Build skins.json
-    const skinsArray = [];
-    for (let i = 0; i < skins.length; i++) {
-      const s = skins[i];
-      const skinUuid = makeUUID();
-      const textureFileName = `skin-${i + 1}.PNG`; // e.g. skin-1.PNG
-      const localizationKey = `${safePack}.skin.${safeFileName(s.name)}`;
-      skinsArray.push({
-        localization_name: localizationKey,
-        texture: textureFileName,
-        type: s.type || 'free',
-        uuid: skinUuid
-      });
-    }
-
+    // skins.json (entsprechend deiner Beispielstruktur mit "skins" array)
     const skinsJson = {
-      format_version: 1,
-      "minecraft:skins": {
-        description: {
-          identifier: `${safePack}:skins`
-        },
-        skins: skinsArray
-      }
+      skins: skins.map(s => ({
+        localization_name: `${packBase}.skin.${s.safeName}`,
+        geometry: s.geometry,
+        texture: s.texture,
+        type: s.type
+      })),
+      serialize_name: packBase,
+      localization_name: packName
     };
 
     // texts/<lang>.lang
-    // pack title + each skin entry
     const lines = [];
-    lines.push(`${safePack}.pack.title=${packName}`);
-    for (let i = 0; i < skins.length; i++) {
-      const s = skins[i];
-      const key = `${safePack}.skin.${safeFileName(s.name)}`;
-      lines.push(`${key}=${s.name}`);
-    }
-    const langEntries = lines.join('\n');
+    lines.push(`${packBase}.pack.title=${packName}`);
+    skins.forEach(s => {
+      lines.push(`${packBase}.skin.${s.safeName}=${s.name}`);
+    });
+    const langContents = lines.join('\n');
 
-    // Build ZIP with JSZip
-    statusEl.textContent = 'Erzeuge ZIP-Struktur...';
+    // ZIP bauen
+    setStatus('Erzeuge ZIP-Struktur mit JSZip...');
     const zip = new JSZip();
-    const root = zip.folder(rootFolderName);
+    const rootFolder = zip.folder(`${packBase}.mcpack`);
 
-    // Add manifest.json
-    root.file('manifest.json', JSON.stringify(manifest, null, 2));
+    rootFolder.file('manifest.json', JSON.stringify(manifest, null, 2));
+    rootFolder.file('skins.json', JSON.stringify(skinsJson, null, 2));
 
-    // Add skins.json
-    root.file('skins.json', JSON.stringify(skinsJson, null, 2));
-
-    // Add skin files
     for (let i = 0; i < skinBuffers.length; i++) {
-      const fname = `skin-${i + 1}.PNG`;
-      root.file(fname, skinBuffers[i], { binary: true });
+      const fname = skins[i].texture;
+      rootFolder.file(fname, skinBuffers[i], { binary: true });
     }
 
-    // Add texts folder and chosen lang file
-    const textsFolder = root.folder('texts');
-    textsFolder.file(`${lang}.lang`, langEntries);
+    const textsFolder = rootFolder.folder('texts');
+    textsFolder.file(`${lang}.lang`, langContents);
 
-    // Generate the zip as blob
-    statusEl.textContent = 'Packe Dateien...';
+    setStatus('Packe Dateien (ZIP) — das kann einen Moment dauern...');
     const contentBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
 
-    // Create download (filename ends with .mcpack)
-    const filename = `${safePack}.mcpack`;
+    // Download starten (.mcpack ist ZIP mit anderer Endung)
+    const filename = `${packBase}.mcpack`;
     const url = URL.createObjectURL(contentBlob);
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
+    // automatisch anklicken
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
 
-    statusEl.textContent = `Fertig: ${filename} — Download gestartet.`;
+    setStatus(`Fertig — Download gestartet: ${filename}`);
   } catch (err) {
-    console.error(err);
-    statusEl.textContent = `Fehler: ${err.message || err}`;
+    console.error('Fehler beim Erzeugen des Packs:', err);
+    setStatus('Fehler: ' + (err && err.message ? err.message : String(err)));
   }
-});
+}
+
+// Sofort beim Laden die Pack-Erzeugung anstoßen
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    // kleine Verzögerung um DOM zu rendern & CDN zu laden
+    setTimeout(buildAndDownloadPack, 300);
+  });
+} else {
+  setTimeout(buildAndDownloadPack, 300);
+}
