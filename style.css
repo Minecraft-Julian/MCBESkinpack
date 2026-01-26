@@ -196,3 +196,13 @@ button.ghost{
   .skin-entry{ grid-template-columns: 80px 1fr 100px; }
   .preview{ width:80px; height:80px; }
 }
+/* Ergänze diese Regeln am Ende deiner style.css */
+.file-error {
+  color: #ff6b6b;
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.skin-entry.error {
+  border-color: rgba(255,107,107,0.25);
+}
