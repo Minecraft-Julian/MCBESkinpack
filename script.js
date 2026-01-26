@@ -1,5 +1,5 @@
-// Final script: validation, rotating previews, fullscreen interactive viewer, generation & download
-// Benötigt: JSZip, THREE.js & OrbitControls (CDN, in index.html)
+// Platzhalter-X Variante - Validation, Vorschau, Fullscreen-Viewer mit Drag-Rotation,
+// Mehrere Skins, Sprache-Auswahl, Vor-Erzeugung beim Laden, JSZip-Pack-Generierung.
 
 // ----------------- Utilities -----------------
 function safeFileName(name) {
@@ -22,171 +22,67 @@ function randHex(len = 6) {
 }
 function bufferToObjectUrl(buffer) { const blob = new Blob([buffer], { type: 'image/png' }); return URL.createObjectURL(blob); }
 
-// Allowed dimensions for Minecraft skins (simplified)
-const ALLOWED_SIZES = [
-  { w: 64, h: 32 },
-  { w: 64, h: 64 },
-  { w: 128, h: 128 }
-];
+// Allowed dimensions for skins
+const ALLOWED_SIZES = [{ w:64,h:32},{ w:64,h:64},{ w:128,h:128 }];
 
-// ----------------- 3D Preview Helpers (Three.js) -----------------
-function makeMiniRenderer(canvas, texture) {
-  // canvas: HTMLCanvasElement to render into
-  // texture: THREE.Texture
-  const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
-  renderer.setSize(canvas.clientWidth, canvas.clientHeight, true);
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(50, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
-  camera.position.set(0, 1.6, 3);
+// Create placeholder PNG with big "X" (returns ArrayBuffer)
+function createPlaceholderSkinPNG(width = 64, height = 64) {
+  return new Promise((resolve, reject) => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext('2d');
 
-  // light
-  const light = new THREE.DirectionalLight(0xffffff, 1);
-  light.position.set(5, 10, 7);
-  scene.add(light);
-  scene.add(new THREE.AmbientLight(0x404040, 0.8));
+      // background
+      const bg = `hsl(${Math.floor(Math.random()*360)},60%,70%)`;
+      ctx.fillStyle = bg;
+      ctx.fillRect(0,0,width,height);
 
-  // simple character: head + body (two boxes) mapped with same texture (approx)
-  const mat = new THREE.MeshStandardMaterial({ map: texture, skinning: false });
+      // big X
+      ctx.strokeStyle = '#111';
+      ctx.lineWidth = Math.max(6, Math.floor(width/10));
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(width*0.15, height*0.15);
+      ctx.lineTo(width*0.85, height*0.85);
+      ctx.moveTo(width*0.85, height*0.15);
+      ctx.lineTo(width*0.15, height*0.85);
+      ctx.stroke();
 
-  // head
-  const headGeo = new THREE.BoxGeometry(0.9, 0.9, 0.9);
-  const head = new THREE.Mesh(headGeo, mat);
-  head.position.set(0, 1.6, 0);
-  scene.add(head);
+      // small hex label
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.font = `${Math.max(8, Math.floor(width/8))}px sans-serif`;
+      ctx.textAlign = 'right';
+      ctx.fillText(randHex(3), width - 4, height - 6);
 
-  // body
-  const bodyGeo = new THREE.BoxGeometry(0.9, 1.2, 0.5);
-  const body = new THREE.Mesh(bodyGeo, mat);
-  body.position.set(0, 0.6, 0);
-  scene.add(body);
-
-  // rotate root
-  const root = new THREE.Group();
-  root.add(head);
-  root.add(body);
-  scene.add(root);
-
-  // animate
-  let running = true;
-  function animate() {
-    if (!running) return;
-    root.rotation.y += 0.01; // slow rotate
-    renderer.render(scene, camera);
-    requestAnimationFrame(animate);
-  }
-  animate();
-
-  return {
-    dispose() {
-      running = false;
-      renderer.dispose();
-    },
-    renderer, scene, camera
-  };
-}
-
-// Fullscreen viewer (bigger scene + orbit controls)
-function openFullscreenViewer(imageUrl) {
-  const overlay = document.getElementById('viewerOverlay');
-  const box = document.getElementById('viewerBox');
-  const canvasContainer = document.getElementById('viewerCanvasContainer');
-  overlay.hidden = false;
-
-  // create canvas
-  canvasContainer.innerHTML = '';
-  const canvas = document.createElement('canvas');
-  canvasContainer.appendChild(canvas);
-
-  const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
-  renderer.setPixelRatio(window.devicePixelRatio);
-  renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight, true);
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(50, canvasContainer.clientWidth / canvasContainer.clientHeight, 0.1, 1000);
-  camera.position.set(0, 1.6, 3);
-
-  const light = new THREE.DirectionalLight(0xffffff, 1.2);
-  light.position.set(5, 10, 7);
-  scene.add(light);
-  scene.add(new THREE.AmbientLight(0x404040, 0.9));
-
-  const loader = new THREE.TextureLoader();
-  loader.load(imageUrl, (tex) => {
-    tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.NearestFilter;
-
-    const mat = new THREE.MeshStandardMaterial({ map: tex, skinning: false });
-    const head = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 1.2), mat);
-    head.position.set(0, 1.6, 0);
-    const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.6, 0.8), mat);
-    body.position.set(0, 0.2, 0);
-
-    const root = new THREE.Group();
-    root.add(head);
-    root.add(body);
-    scene.add(root);
-
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enablePan = false;
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.minDistance = 1.6;
-    controls.maxDistance = 6;
-
-    let running = true;
-    function animate() {
-      if (!running) return;
-      controls.update();
-      renderer.render(scene, camera);
-      requestAnimationFrame(animate);
+      canvas.toBlob(async (blob) => {
+        if (!blob) return reject(new Error('Blob creation failed'));
+        const ab = await blob.arrayBuffer();
+        resolve(ab);
+      }, 'image/png');
+    } catch (e) {
+      reject(e);
     }
-    animate();
-
-    // close handler: click outside viewerBox (overlay) closes
-    function closeViewer() {
-      running = false;
-      controls.dispose();
-      try { renderer.dispose(); } catch(e) {}
-      overlay.hidden = true;
-      canvasContainer.innerHTML = '';
-      overlay.removeEventListener('click', overlayClickHandler);
-      window.removeEventListener('resize', onResize);
-    }
-
-    function overlayClickHandler(ev) {
-      // if click is directly on overlay (outside the viewer box), close
-      if (ev.target === overlay) closeViewer();
-    }
-    overlay.addEventListener('click', overlayClickHandler);
-
-    function onResize() {
-      renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight, true);
-      camera.aspect = canvasContainer.clientWidth / canvasContainer.clientHeight;
-      camera.updateProjectionMatrix();
-    }
-    window.addEventListener('resize', onResize);
   });
 }
 
-// ----------------- Validation -----------------
+// Validate uploaded file: PNG extension/type + dimensions
 async function validateSkinFile(file) {
-  // Check extension & type
-  if (!file) return { ok: false, msg: 'Keine Datei' };
-  const nameLower = (file.name || '').toLowerCase();
-  if (!nameLower.endsWith('.png') && file.type !== 'image/png') {
-    return { ok: false, msg: 'Nur PNG-Dateien sind erlaubt.' };
-  }
-  // Check dimensions
+  if (!file) return { ok:false, msg:'Keine Datei' };
+  const name = (file.name || '').toLowerCase();
+  if (!name.endsWith('.png') && file.type !== 'image/png') return { ok:false, msg:'Nur PNG-Dateien sind erlaubt.' };
+
   const url = URL.createObjectURL(file);
   const img = new Image();
-  const p = new Promise((resolve) => {
+  const p = new Promise(resolve => {
     img.onload = () => {
       const w = img.width, h = img.height;
       URL.revokeObjectURL(url);
       const ok = ALLOWED_SIZES.some(s => s.w === w && s.h === h);
-      if (!ok) resolve({ ok: false, msg: `Ungültige Bildgröße ${w}×${h}. Erlaubt: ${ALLOWED_SIZES.map(s => s.w + '×' + s.h).join(', ')}` });
-      else resolve({ ok: true, width: w, height: h });
+      if (!ok) resolve({ ok:false, msg:`Ungültige Bildgröße ${w}×${h}. Erlaubt: ${ALLOWED_SIZES.map(s=>s.w+'×'+s.h).join(', ')}` });
+      else resolve({ ok:true, width:w, height:h });
     };
-    img.onerror = () => { URL.revokeObjectURL(url); resolve({ ok: false, msg: 'Bild konnte nicht geladen werden.' }); };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve({ ok:false, msg:'Bild konnte nicht geladen werden.' }); };
   });
   img.src = url;
   return p;
@@ -200,8 +96,7 @@ const LANGS = [
   "ar_SA","he_IL","vi_VN","id_ID","th_TH","uk_UA"
 ];
 
-let skinsData = []; // array of skin objects {id, name, safeName, buffer, uploadedFile, textureFile, type, geometry}
-let generatedPack = null;
+let skinsData = []; // { id, name, safeName, buffer, uploadedFile, textureFile, type, geometry }
 
 document.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('packForm');
@@ -211,6 +106,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const languageSelect = document.getElementById('language');
   const regenBtn = document.getElementById('regenBtn');
   const autoDownloadCheckbox = document.getElementById('autoDownloadOnLoad');
+  const viewerOverlay = document.getElementById('viewerOverlay');
+  const viewerImage = document.getElementById('viewerImage');
 
   if (!form || !skinsContainer || !addSkinBtn || !languageSelect || !statusEl) {
     console.error('DOM elements missing');
@@ -219,58 +116,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function setStatus(t) { statusEl.textContent = t; console.log('[mcbe]', t); }
 
-  // fill language select
+  // fill languages
   LANGS.forEach(l => { const o = document.createElement('option'); o.value = l; o.textContent = l; languageSelect.appendChild(o); });
   languageSelect.value = 'en_US';
   languageSelect.addEventListener('change', () => setStatus(`Sprache: ${languageSelect.value}`));
 
-  // create skin DOM entry with 3D preview
-  async function createSkinEntry(skin, openFileDialog = false) {
-    const entryEl = document.createElement('div');
-    entryEl.className = 'skin-entry';
-    entryEl.dataset.id = skin.id;
+  // create skin entry DOM and return file input reference
+  function createSkinEntryDOM(skin) {
+    const entry = document.createElement('div');
+    entry.className = 'skin-entry';
+    entry.dataset.id = skin.id;
 
-    // preview canvas for Three.js
-    const previewWrap = document.createElement('div'); previewWrap.className = 'preview';
-    const canvas = document.createElement('canvas');
-    canvas.width = 200; canvas.height = 200;
-    canvas.style.width = '100%'; canvas.style.height = '100%';
-    previewWrap.appendChild(canvas);
+    // preview img
+    const previewWrap = document.createElement('div');
+    previewWrap.className = 'preview';
+    const img = document.createElement('img');
+    img.alt = skin.name || 'preview';
+    if (skin.uploadedFile) img.src = URL.createObjectURL(skin.uploadedFile);
+    else if (skin.buffer) img.src = bufferToObjectUrl(skin.buffer);
+    previewWrap.appendChild(img);
 
     // middle
     const middle = document.createElement('div'); middle.className = 'middle';
     const nameInput = document.createElement('input'); nameInput.type = 'text'; nameInput.value = skin.name || ''; nameInput.placeholder = 'Skin-Name';
     nameInput.addEventListener('input', () => { skin.name = nameInput.value.trim(); skin.safeName = safeFileName(skin.name); });
+
     const fileInput = document.createElement('input'); fileInput.type = 'file'; fileInput.accept = 'image/png';
     fileInput.addEventListener('change', async () => {
       if (!fileInput.files || !fileInput.files[0]) return;
       const f = fileInput.files[0];
       const valid = await validateSkinFile(f);
-      if (!valid.ok) {
-        alert(valid.msg);
-        fileInput.value = '';
-        return;
-      }
-      // store uploaded file and update preview
+      if (!valid.ok) { alert(valid.msg); fileInput.value = ''; return; }
+      // accepted
       skin.uploadedFile = f;
-      try { URL.revokeObjectURL(canvas._lastSrc || ''); } catch(e) {}
-      const objUrl = URL.createObjectURL(f);
-      canvas._lastSrc = objUrl;
-      // create Three texture and re-init mini renderer
-      const tex = new THREE.TextureLoader().load(objUrl, (t) => {
-        t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
-      });
-      // dispose old renderer if any
-      if (canvas._renderer && canvas._renderer.dispose) canvas._renderer.dispose();
-      // create new mini renderer
-      const mini = makeMiniRenderer(canvas, new THREE.CanvasTexture(await (await f.arrayBuffer()).then(b => new Blob([b])).then(b => { /* placeholder */ return new Image(); })));
-      // Actually create texture from file bytes: simpler -> use texture loader with objUrl (already loaded above)
-      // For safety, replace mini by one using texture loader result
-      if (canvas._renderer && canvas._renderer.dispose) canvas._renderer.dispose();
-      const texture = new THREE.TextureLoader().load(objUrl);
-      texture.magFilter = THREE.NearestFilter; texture.minFilter = THREE.NearestFilter;
-      const r = makeMiniRenderer(canvas, texture);
-      canvas._renderer = r;
+      // update preview
+      try { URL.revokeObjectURL(img.src); } catch(e) {}
+      img.src = URL.createObjectURL(f);
     });
 
     const small = document.createElement('small'); small.className = 'muted'; small.textContent = 'Typ: free • Geometrie: humanoid.customSlim';
@@ -282,87 +163,114 @@ document.addEventListener('DOMContentLoaded', () => {
     const removeBtn = document.createElement('button'); removeBtn.type = 'button'; removeBtn.className = 'ghost'; removeBtn.textContent = 'Entfernen';
     removeBtn.addEventListener('click', () => {
       skinsData = skinsData.filter(s => s.id !== skin.id);
-      if (entryEl.parentNode) entryEl.parentNode.removeChild(entryEl);
+      if (entry.parentNode) entry.parentNode.removeChild(entry);
     });
     right.appendChild(typeInput); right.appendChild(removeBtn);
 
-    entryEl.appendChild(previewWrap); entryEl.appendChild(middle); entryEl.appendChild(right);
-    skinsContainer.appendChild(entryEl);
+    entry.appendChild(previewWrap); entry.appendChild(middle); entry.appendChild(right);
+    skinsContainer.appendChild(entry);
 
-    // init preview renderer using existing buffer or uploadedFile
-    let textureUrl = null;
-    if (skin.uploadedFile) textureUrl = URL.createObjectURL(skin.uploadedFile);
-    else if (skin.buffer) {
-      textureUrl = bufferToObjectUrl(skin.buffer);
-    }
-    if (textureUrl) {
-      const texture = new THREE.TextureLoader().load(textureUrl);
-      texture.magFilter = THREE.NearestFilter; texture.minFilter = THREE.NearestFilter;
-      const mini = makeMiniRenderer(canvas, texture);
-      canvas._renderer = mini;
-      canvas._lastSrc = textureUrl;
-    } else {
-      // generate placeholder buffer -> texture
-      const placeholder = new Image();
-      createPlaceholderSkinPNG(64,64,true).then(ab => {
-        const url = bufferToObjectUrl(ab);
-        const texture = new THREE.TextureLoader().load(url);
-        texture.magFilter = THREE.NearestFilter; texture.minFilter = THREE.NearestFilter;
-        const mini = makeMiniRenderer(canvas, texture);
-        canvas._renderer = mini;
-        canvas._lastSrc = url;
-      });
-    }
-
-    // clicking the preview opens fullscreen viewer with that skin's texture
+    // clicking preview opens fullscreen viewer
     previewWrap.addEventListener('click', () => {
-      let urlToOpen = canvas._lastSrc;
-      if (!urlToOpen && skin.uploadedFile) urlToOpen = URL.createObjectURL(skin.uploadedFile);
-      if (!urlToOpen && skin.buffer) urlToOpen = bufferToObjectUrl(skin.buffer);
-      if (urlToOpen) openFullscreenViewer(urlToOpen);
+      // open viewer with current image src (uploaded or buffer)
+      let src = img.src;
+      if (!src && skin.uploadedFile) src = URL.createObjectURL(skin.uploadedFile);
+      if (!src && skin.buffer) src = bufferToObjectUrl(skin.buffer);
+      if (src) openFullscreenViewer(src);
     });
 
-    // If openFileDialog is requested (user clicked "Skin hinzufügen"), open the file picker now
-    if (openFileDialog) {
-      // small delay to ensure element is in DOM and focus is allowed (user gesture)
-      setTimeout(() => {
-        try { fileInput.click(); } catch (e) { console.warn('fileInput.click() failed', e); }
-      }, 10);
-    }
+    return { fileInput, img };
   }
 
-  // add new skin entry with placeholder
+  // add new skin (with placeholder); optionally open file dialog immediately
   async function addNewSkinEntry(openFileDialog = false) {
     const name = `Skin-${randHex(4)}`;
     const safeName = safeFileName(name);
-    const buf = await createPlaceholderSkinPNG(64, 64, true);
-    const s = { id: makeUUID(), name, safeName, buffer: buf, uploadedFile: null, textureFile: `skin-${skinsData.length + 1}.png`, type: 'free', geometry: 'geometry.humanoid.customSlim' };
+    const buf = await createPlaceholderSkinPNG(64,64);
+    const s = { id: makeUUID(), name, safeName, buffer: buf, uploadedFile: null, textureFile: `skin-${skinsData.length + 1}.png`, type:'free', geometry:'geometry.humanoid.customSlim' };
     skinsData.push(s);
-    await createSkinEntry(s, openFileDialog);
+    const { fileInput } = createSkinEntryDOM(s);
+    if (openFileDialog) {
+      // user gesture context -> try to open file picker
+      setTimeout(() => { try { fileInput && fileInput.click(); } catch(e) { console.warn('fileInput.click failed', e); } }, 10);
+    }
   }
 
-  // pre-generate placeholders and populate first two skins
+  // pre-generate placeholders and fill form
   async function preGeneratePlaceholders() {
     setStatus('Erzeuge Platzhalter...');
     const packBase = `skinpack-${randHex(6)}`;
     const packName = `Pack ${randHex(4)}`;
     const packDesc = `Automatisch erzeugtes Skinpack ${randHex(5)}`;
-    generatedPack = { packBase, packName, packDesc, lang: languageSelect.value || 'en_US' };
-    document.getElementById('packName').value = generatedPack.packName;
-    document.getElementById('packDesc').value = generatedPack.packDesc;
+    // set form values
+    document.getElementById('packName').value = packName;
+    document.getElementById('packDesc').value = packDesc;
     // create two placeholders
     skinsData = [];
+    skinsContainer.innerHTML = '';
     await addNewSkinEntry(false);
     await addNewSkinEntry(false);
     setStatus('Platzhalter erstellt. Du kannst Skins hochladen oder weitere hinzufügen.');
-    // auto-download if checked
     if (autoDownloadCheckbox && autoDownloadCheckbox.checked) {
-      // small delay so UI is visible
-      setTimeout(() => buildPackAndDownload({ autoFilename: `${generatedPack.packBase}.mcpack` }), 400);
+      setTimeout(() => buildPackAndDownload({ autoFilename: `${packBase}.mcpack` }), 300);
     }
   }
 
-  // build pack using current UI state
+  // Fullscreen viewer with drag-rotation (rotateY)
+  function openFullscreenViewer(imageSrc) {
+    const overlay = viewerOverlay;
+    const img = viewerImage;
+    img.src = imageSrc;
+    img.style.transform = 'rotateY(0deg)'; // reset
+    img.dataset.rot = '0';
+    overlay.hidden = false;
+
+    let dragging = false;
+    let lastX = 0;
+    function onPointerDown(ev) {
+      dragging = true;
+      lastX = ev.clientX || ev.touches && ev.touches[0].clientX;
+      img.style.cursor = 'grabbing';
+      ev.preventDefault();
+    }
+    function onPointerMove(ev) {
+      if (!dragging) return;
+      const x = ev.clientX || ev.touches && ev.touches[0].clientX;
+      const dx = x - lastX;
+      lastX = x;
+      let rot = parseFloat(img.dataset.rot || '0');
+      rot += dx * 0.5; // sensitivity
+      img.dataset.rot = String(rot);
+      img.style.transform = `rotateY(${rot}deg)`;
+    }
+    function onPointerUp() {
+      dragging = false;
+      img.style.cursor = 'grab';
+    }
+    function onOverlayClick(ev) {
+      if (ev.target === overlay) closeViewer();
+    }
+    function onKeyDown(ev) {
+      if (ev.key === 'Escape') closeViewer();
+    }
+    function closeViewer() {
+      overlay.hidden = true;
+      img.src = '';
+      overlay.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      overlay.removeEventListener('click', onOverlayClick);
+      window.removeEventListener('keydown', onKeyDown);
+    }
+
+    overlay.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    overlay.addEventListener('click', onOverlayClick);
+    window.addEventListener('keydown', onKeyDown);
+  }
+
+  // build pack from UI and download
   async function buildPackAndDownload(options = {}) {
     try {
       setStatus('Erzeuge Skinpack...');
@@ -384,7 +292,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const fileInput = entry.querySelector('input[type="file"]');
         let buffer = null;
         if (fileInput && fileInput.files && fileInput.files[0]) {
-          // validate
           const v = await validateSkinFile(fileInput.files[0]);
           if (!v.ok) { alert(v.msg); return; }
           buffer = await fileInput.files[0].arrayBuffer();
@@ -395,7 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (s.buffer) {
           buffer = s.buffer;
         } else {
-          buffer = await createPlaceholderSkinPNG(64,64,true);
+          buffer = await createPlaceholderSkinPNG(64,64);
         }
         idx++;
         finalSkins.push({ name: s.name || `skin-${idx}`, safeName: s.safeName || safeFileName(s.name || `skin-${idx}`), buffer, textureFile: `skin-${idx}.PNG`, type: s.type || 'free', geometry: s.geometry || 'geometry.humanoid.customSlim' });
@@ -403,14 +310,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (finalSkins.length === 0) { setStatus('Bitte mindestens einen Skin einfügen.'); return; }
 
-      // manifest
-      const packUuid = makeUUID(); const moduleUuid = makeUUID();
+      // manifest (format_version: 2)
+      const packUuid = makeUUID();
+      const moduleUuid = makeUUID();
       const manifest = { format_version: 2, header: { name: packName, description: packDesc, uuid: packUuid, version:[1,0,0], min_engine_version:[1,20,0] }, modules:[{ type:"skin_pack", uuid:moduleUuid, version:[1,0,0] }] };
 
       // skins.json
       const skinsJson = { skins: finalSkins.map(s => ({ localization_name: `${safePack}.skin.${s.safeName}`, geometry: s.geometry, texture: s.textureFile, type: s.type })), serialize_name: safePack, localization_name: packName };
 
-      // texts
+      // texts/lang.lang
       const lines = []; lines.push(`${safePack}.pack.title=${packName}`); finalSkins.forEach(s => lines.push(`${safePack}.skin.${s.safeName}=${s.name}`));
       const langContents = lines.join('\n');
 
@@ -441,18 +349,19 @@ document.addEventListener('DOMContentLoaded', () => {
   // ----------------- Event Listeners -----------------
   addSkinBtn.addEventListener('click', (ev) => {
     ev.preventDefault();
-    // create new entry and open file dialog immediately (user gesture)
+    // create entry + open file dialog in user gesture
     addNewSkinEntry(true).catch(e => { console.error('addNewSkinEntry failed', e); setStatus('Fehler beim Hinzufügen eines Skins'); });
   });
 
   regenBtn.addEventListener('click', async () => {
-    setStatus('Neues Platzhalterbild wird erzeugt...');
-    for (const s of skinsData) { if (!s.uploadedFile) s.buffer = await createPlaceholderSkinPNG(64,64,true); }
-    // refresh previews by clearing and re-creating DOM entries
+    setStatus('Erzeuge neue Platzhalter...');
+    // replace buffers for skins without uploadedFile
+    for (const s of skinsData) { if (!s.uploadedFile) s.buffer = await createPlaceholderSkinPNG(64,64); }
+    // refresh DOM
     const copy = skinsData.slice();
     skinsData = copy;
     skinsContainer.innerHTML = '';
-    for (const s of copy) await createSkinEntry(s, false);
+    for (const s of copy) createSkinEntryDOM(s);
     setStatus('Platzhalter aktualisiert.');
   });
 
@@ -461,12 +370,12 @@ document.addEventListener('DOMContentLoaded', () => {
     await buildPackAndDownload();
   });
 
-  // viewer overlay click closes if clicked outside viewer box
-  const overlay = document.getElementById('viewerOverlay');
-  overlay.addEventListener('click', (ev) => {
-    if (ev.target === overlay) { overlay.hidden = true; const container = document.getElementById('viewerCanvasContainer'); container.innerHTML = ''; }
+  // viewer overlay close on outside click or ESC
+  viewerOverlay.addEventListener('click', (ev) => {
+    if (ev.target === viewerOverlay) { viewerOverlay.hidden = true; viewerImage.src = ''; }
   });
+  window.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') { viewerOverlay.hidden = true; viewerImage.src = ''; } });
 
   // ----------------- Start -----------------
-  preGeneratePlaceholders().catch(e => { console.error('preGenerate failed', e); setStatus('Fehler beim Start'); });
+  preGeneratePlaceholders().catch(e => { console.error('pre-generate failed', e); setStatus('Fehler beim Start'); });
 });
