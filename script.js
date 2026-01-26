@@ -1,4 +1,5 @@
-// Platzhalter-X Variante - Validation, Vorschau, Fullscreen-Viewer mit Drag-Rotation,
+// Platzhalter-X Variante - Fix: fileInput.click() innerhalb der user gesture
+// Validation, Vorschau, Fullscreen-Viewer mit Drag-Rotation,
 // Mehrere Skins, Sprache-Auswahl, Vor-Erzeugung beim Laden, JSZip-Pack-Generierung.
 
 // ----------------- Utilities -----------------
@@ -183,16 +184,42 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // add new skin (with placeholder); optionally open file dialog immediately
+  // IMPORTANT: fileInput.click() must happen synchronously within the user gesture.
   async function addNewSkinEntry(openFileDialog = false) {
-    const name = `Skin-${randHex(4)}`;
-    const safeName = safeFileName(name);
-    const buf = await createPlaceholderSkinPNG(64,64);
-    const s = { id: makeUUID(), name, safeName, buffer: buf, uploadedFile: null, textureFile: `skin-${skinsData.length + 1}.png`, type:'free', geometry:'geometry.humanoid.customSlim' };
-    skinsData.push(s);
-    const { fileInput } = createSkinEntryDOM(s);
-    if (openFileDialog) {
-      // user gesture context -> try to open file picker
-      setTimeout(() => { try { fileInput && fileInput.click(); } catch(e) { console.warn('fileInput.click failed', e); } }, 10);
+    try {
+      // create shell skin data WITHOUT awaiting placeholder generation
+      const name = `Skin-${randHex(4)}`;
+      const safeName = safeFileName(name);
+      const s = { id: makeUUID(), name, safeName, buffer: null, uploadedFile: null, textureFile: `skin-${skinsData.length + 1}.png`, type:'free', geometry:'geometry.humanoid.customSlim' };
+      skinsData.push(s);
+
+      // create DOM entry synchronously and get fileInput reference
+      const { fileInput, img } = createSkinEntryDOM(s);
+
+      // If requested, open file picker IMMEDIATELY (inside user gesture)
+      if (openFileDialog) {
+        try {
+          fileInput && fileInput.click();
+          console.log('[mcbe] fileInput.click() called synchronously');
+        } catch (e) {
+          console.warn('[mcbe] fileInput.click() failed', e);
+        }
+      }
+
+      // Now generate placeholder image asynchronously and set preview if user didn't upload one
+      const buf = await createPlaceholderSkinPNG(64,64);
+      // if user has not uploaded a file in the meantime, set the placeholder
+      if (!s.uploadedFile) {
+        s.buffer = buf;
+        try { if (img && img.src) URL.revokeObjectURL(img.src); } catch(e) {}
+        if (img) img.src = bufferToObjectUrl(buf);
+      } else {
+        // user uploaded, do nothing: uploaded file already shown
+      }
+    } catch (err) {
+      console.error('[mcbe] addNewSkinEntry error', err);
+      // bubble error up to caller UI
+      throw err;
     }
   }
 
@@ -229,13 +256,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastX = 0;
     function onPointerDown(ev) {
       dragging = true;
-      lastX = ev.clientX || ev.touches && ev.touches[0].clientX;
+      lastX = ev.clientX || (ev.touches && ev.touches[0].clientX) || 0;
       img.style.cursor = 'grabbing';
       ev.preventDefault();
     }
     function onPointerMove(ev) {
       if (!dragging) return;
-      const x = ev.clientX || ev.touches && ev.touches[0].clientX;
+      const x = ev.clientX || (ev.touches && ev.touches[0].clientX) || 0;
       const dx = x - lastX;
       lastX = x;
       let rot = parseFloat(img.dataset.rot || '0');
@@ -349,8 +376,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // ----------------- Event Listeners -----------------
   addSkinBtn.addEventListener('click', (ev) => {
     ev.preventDefault();
-    // create entry + open file dialog in user gesture
-    addNewSkinEntry(true).catch(e => { console.error('addNewSkinEntry failed', e); setStatus('Fehler beim Hinzufügen eines Skins'); });
+    // create entry + open file dialog in user gesture (synchronous fileInput.click)
+    addNewSkinEntry(true).catch(e => { console.error('addNewSkinEntry failed', e); setStatus('Fehler beim Hinzufügen eines Skins (Konsole prüfen)'); });
   });
 
   regenBtn.addEventListener('click', async () => {
