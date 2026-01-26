@@ -3,51 +3,22 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>MCBE Skinpack Generator</title>
+  <title>MCBE Skinpack Auto-Generator</title>
   <link rel="stylesheet" href="style.css" />
-  <!-- JSZip from CDN -->
+  <!-- JSZip (CDN) -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
 <body>
   <main class="container">
-    <h1>Minecraft Bedrock Skinpack Generator</h1>
-    <p class="lead">Erstelle ein Skinpack (.mcpack) direkt im Browser — kein Backend erforderlich.</p>
+    <h1>MCBE Skinpack Auto-Generator</h1>
+    <p class="lead">Beim Laden der Seite wird automatisch ein Skinpack erzeugt und der Download gestartet. Keine Server-Komponente nötig.</p>
 
-    <form id="packForm" class="form" autocomplete="off">
-      <fieldset>
-        <legend>Skinpack Informationen</legend>
-        <label for="packName">Skinpack-Name</label>
-        <input id="packName" name="packName" type="text" placeholder="Mein Skinpack" required />
-
-        <label for="packDesc">Skinpack-Beschreibung</label>
-        <textarea id="packDesc" name="packDesc" rows="3" placeholder="Beschreibung des Skinpacks"></textarea>
-      </fieldset>
-
-      <fieldset>
-        <legend>Skins (mehrere möglich)</legend>
-        <div id="skinsContainer"></div>
-        <div class="actions-inline">
-          <button type="button" id="addSkinBtn" class="ghost">Skin hinzufügen</button>
-        </div>
-        <p class="muted">Jeder Skin braucht einen Namen und eine PNG-Datei. Typ ist standardmäßig <code>free</code>.</p>
-      </fieldset>
-
-      <fieldset>
-        <legend>Sprache für texts</legend>
-        <label for="language">Wähle die Sprache der Textdatei</label>
-        <select id="language" name="language"></select>
-        <p class="muted">Die Datei wird als <code>texts/&lt;auswahl&gt;.lang</code> im Pack erzeugt.</p>
-      </fieldset>
-
-      <div class="actions">
-        <button type="submit" id="generateBtn">Skinpack erzeugen & herunterladen</button>
-      </div>
-    </form>
-
-    <section id="status" class="status" aria-live="polite"></section>
+    <section id="status" class="status" aria-live="polite">
+      Initialisiere...
+    </section>
 
     <footer class="footer">
-      <p>Kleines Tool • Läuft komplett im Browser • Manifest Version: 2 • Min engine version: 1.20.0</p>
+      <p>Manifest Version: 2 • Min engine version: 1.20.0 • Läuft komplett im Browser</p>
     </footer>
   </main>
 
