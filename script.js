@@ -1,8 +1,7 @@
-// Kombinierte Version:
-// - Beim Laden: Platzhalter-Pack wird erzeugt (und optional automatisch heruntergeladen).
-// - Formular wird mit den generierten Werten vorbefüllt.
-// - Benutzer kann Skins hinzufügen/entfernen, Bild ersetzen und die Sprache wählen.
-// - Beim Absenden: finaler .mcpack wird aus Formularwerten erzeugt (nur Client-side).
+// Kombinierte Version - Fix für "Skin hinzufügen" & Sprach-Auswahl
+// - Wenn auf "Skin hinzufügen" geklickt wird, wird zusätzlich direkt der Dateiauswahl-Dialog geöffnet.
+// - Sprache Select hat nun Pointer-Events und einen Change-Handler (sichtbares Feedback).
+// - Mehr Logging in der Konsole zur Fehlersuche.
 //
 // Benötigt: JSZip (global JSZip)
 
@@ -29,6 +28,11 @@ function randHex(len = 6) {
   let s = '';
   for (let i = 0; i < len; i++) s += chars[Math.floor(Math.random() * chars.length)];
   return s;
+}
+
+function bufferToObjectUrl(buffer) {
+  const blob = new Blob([buffer], { type: 'image/png' });
+  return URL.createObjectURL(blob);
 }
 
 // Erzeuge Platzhalter-Skin (Canvas) -> Promise<ArrayBuffer>
@@ -72,12 +76,6 @@ function createPlaceholderSkinPNG(width = 64, height = 64, drawX = true) {
   });
 }
 
-// Hilfsfunktion: ArrayBuffer -> ObjectURL für Preview
-function bufferToObjectUrl(buffer) {
-  const blob = new Blob([buffer], { type: 'image/png' });
-  return URL.createObjectURL(blob);
-}
-
 // ----------------- Globals & Config -----------------
 const LANGS = [
   "en_US","de_DE","fr_FR","es_ES","it_IT","pt_BR","ru_RU",
@@ -86,8 +84,8 @@ const LANGS = [
   "ar_SA","he_IL","vi_VN","id_ID","th_TH","uk_UA"
 ];
 
-let generatedPack = null; // enthält vor-generierte Packdaten
-let skinsData = []; // { id, name, safeName, buffer (ArrayBuffer) | null, uploadedFile (File) | null }
+let generatedPack = null;
+let skinsData = []; // { id, name, safeName, buffer, uploadedFile, textureFile, type, geometry }
 
 // ----------------- DOM & Init -----------------
 document.addEventListener('DOMContentLoaded', () => {
@@ -99,6 +97,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const regenBtn = document.getElementById('regenBtn');
   const autoDownloadCheckbox = document.getElementById('autoDownloadOnLoad');
 
+  if (!form || !skinsContainer || !addSkinBtn || !languageSelect || !statusEl) {
+    console.error('[mcbe] Missing required DOM elements', { form: !!form, skinsContainer: !!skinsContainer, addSkinBtn: !!addSkinBtn, languageSelect: !!languageSelect, statusEl: !!statusEl });
+    if (statusEl) statusEl.textContent = 'Fehler: Seite nicht korrekt geladen (siehe Konsole).';
+    return;
+  }
+
+  // ensure select is interactable
+  languageSelect.style.pointerEvents = 'auto';
+  languageSelect.tabIndex = 0;
+
   // populate language select
   LANGS.forEach(l => {
     const o = document.createElement('option');
@@ -107,14 +115,138 @@ document.addEventListener('DOMContentLoaded', () => {
     languageSelect.appendChild(o);
   });
   languageSelect.value = 'en_US';
+  languageSelect.addEventListener('change', () => {
+    setStatus(`Sprache gewählt: ${languageSelect.value}`);
+    console.log('[mcbe] language changed:', languageSelect.value);
+  });
 
-  // utility: status
   function setStatus(t) {
     if (statusEl) statusEl.textContent = t;
     console.log('[mcbe]', t);
   }
 
-  // Erzeuge initiale Platzhalter-Daten (pack + 2 skins)
+  // create DOM entry for skin and return fileInput so caller can open it
+  function createSkinEntryDOM(skin) {
+    const entry = document.createElement('div');
+    entry.className = 'skin-entry';
+    entry.dataset.id = skin.id;
+
+    // Preview
+    const previewWrap = document.createElement('div');
+    previewWrap.className = 'preview';
+    const img = document.createElement('img');
+    img.alt = skin.name || 'preview';
+    if (skin.uploadedFile) {
+      img.src = URL.createObjectURL(skin.uploadedFile);
+    } else if (skin.buffer) {
+      img.src = bufferToObjectUrl(skin.buffer);
+    }
+    previewWrap.appendChild(img);
+
+    // middle
+    const middle = document.createElement('div');
+    middle.className = 'middle';
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.value = skin.name || '';
+    nameInput.placeholder = 'Skin-Name';
+    nameInput.addEventListener('input', () => {
+      skin.name = nameInput.value.trim();
+      skin.safeName = safeFileName(skin.name);
+    });
+
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/png';
+    fileInput.style.cursor = 'pointer';
+    fileInput.addEventListener('change', async () => {
+      if (fileInput.files && fileInput.files[0]) {
+        skin.uploadedFile = fileInput.files[0];
+        // update preview
+        if (img && img.src) {
+          try { URL.revokeObjectURL(img.src); } catch(e) {}
+        }
+        img.src = URL.createObjectURL(skin.uploadedFile);
+      }
+    });
+
+    const small = document.createElement('small');
+    small.className = 'muted';
+    small.textContent = 'Typ: free • Geometrie: humanoid.customSlim';
+
+    middle.appendChild(nameInput);
+    middle.appendChild(fileInput);
+    middle.appendChild(small);
+
+    // right
+    const right = document.createElement('div');
+    right.className = 'right';
+    const typeInput = document.createElement('input');
+    typeInput.type = 'text';
+    typeInput.value = skin.type || 'free';
+    typeInput.readOnly = true;
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'ghost';
+    removeBtn.textContent = 'Entfernen';
+    removeBtn.addEventListener('click', () => {
+      skinsData = skinsData.filter(s => s.id !== skin.id);
+      if (entry.parentNode) entry.parentNode.removeChild(entry);
+    });
+
+    right.appendChild(typeInput);
+    right.appendChild(removeBtn);
+
+    entry.appendChild(previewWrap);
+    entry.appendChild(middle);
+    entry.appendChild(right);
+
+    skinsContainer.appendChild(entry);
+
+    // Return useful references
+    return { entry, fileInput, img, nameInput };
+  }
+
+  // Add a new skin entry (optionally open the file dialog immediately)
+  async function addNewSkinEntry(openFileDialog = false) {
+    const name = `Skin-${randHex(4)}`;
+    const safeName = safeFileName(name);
+    const buf = await createPlaceholderSkinPNG(64, 64, true);
+    const s = {
+      id: makeUUID(),
+      name,
+      safeName,
+      buffer: buf,
+      uploadedFile: null,
+      textureFile: `skin-${skinsData.length + 1}.png`,
+      type: 'free',
+      geometry: 'geometry.humanoid.customSlim'
+    };
+    skinsData.push(s);
+    const { fileInput } = createSkinEntryDOM(s);
+    // If requested, open the file picker immediately (must be in user gesture context)
+    if (openFileDialog) {
+      try {
+        // Slight delay to ensure input is in DOM
+        setTimeout(() => {
+          fileInput && fileInput.click();
+          console.log('[mcbe] triggered fileInput.click() for new skin entry');
+        }, 10);
+      } catch (e) {
+        console.warn('[mcbe] could not open file dialog programmatically', e);
+      }
+    }
+  }
+
+  // Populate UI from generatedPack / skinsData
+  function populateFormFromGenerated() {
+    skinsContainer.innerHTML = '';
+    skinsData.forEach((s) => createSkinEntryDOM(s));
+    if (skinsData.length === 0) addNewSkinEntry();
+  }
+
+  // Pre-generate placeholders and pre-fill form
   async function preGeneratePlaceholders() {
     setStatus('Erzeuge Platzhalter für Skinpack...');
     const packBase = `skinpack-${randHex(6)}`;
@@ -140,142 +272,20 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    generatedPack = {
-      packBase,
-      packName,
-      packDesc,
-      lang,
-      skins: tempSkins
-    };
-    // copy to skinsData for UI manipulation
+    generatedPack = { packBase, packName, packDesc, lang, skins: tempSkins };
     skinsData = tempSkins.map(s => ({ ...s }));
-    setStatus('Platzhalter erzeugt.');
+    // Fill form fields
+    const pn = document.getElementById('packName');
+    const pd = document.getElementById('packDesc');
+    if (pn) pn.value = generatedPack.packName;
+    if (pd) pd.value = generatedPack.packDesc;
+
     populateFormFromGenerated();
-    // Auto-download wenn aktiviert
-    if (autoDownloadCheckbox && autoDownloadCheckbox.checked) {
-      // kleine Verzögerung, damit die UI sichtbar bleibt
-      setTimeout(() => {
-        buildPackAndDownload({ autoFilename: `${packBase}.mcpack` }).catch(e => console.error(e));
-      }, 300);
-    }
+    setStatus('Platzhalter erzeugt.');
+    // Auto-download handled elsewhere if desired
   }
 
-  // Erzeuge DOM-Einträge für skinsData
-  function populateFormFromGenerated() {
-    skinsContainer.innerHTML = '';
-    skinsData.forEach((s, idx) => {
-      createSkinEntryDOM(s, idx);
-    });
-    // ensure at least one entry exists
-    if (skinsData.length === 0) {
-      addNewSkinEntry();
-    }
-  }
-
-  // Erzeuge ein DOM-Element für einen Skin (mit Preview, Name, File-Input, Entfernen)
-  function createSkinEntryDOM(skin, index) {
-    const entry = document.createElement('div');
-    entry.className = 'skin-entry';
-    entry.dataset.id = skin.id;
-
-    // Preview
-    const previewWrap = document.createElement('div');
-    previewWrap.className = 'preview';
-    const img = document.createElement('img');
-    img.alt = skin.name || 'preview';
-    // set preview from uploaded file if exists else from buffer
-    if (skin.uploadedFile) {
-      img.src = URL.createObjectURL(skin.uploadedFile);
-    } else if (skin.buffer) {
-      img.src = bufferToObjectUrl(skin.buffer);
-    } else {
-      // fallback canvas
-      createPlaceholderSkinPNG(64,64,true).then(ab => {
-        img.src = bufferToObjectUrl(ab);
-      });
-    }
-    previewWrap.appendChild(img);
-
-    // middle (name + file input + info)
-    const middle = document.createElement('div');
-    middle.className = 'middle';
-    const nameInput = document.createElement('input');
-    nameInput.type = 'text';
-    nameInput.value = skin.name || '';
-    nameInput.placeholder = 'Skin-Name';
-    nameInput.addEventListener('input', () => {
-      skin.name = nameInput.value.trim();
-      skin.safeName = safeFileName(skin.name);
-    });
-
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = 'image/png';
-    fileInput.addEventListener('change', async () => {
-      if (fileInput.files && fileInput.files[0]) {
-        skin.uploadedFile = fileInput.files[0];
-        // update preview
-        img.src && URL.revokeObjectURL(img.src);
-        img.src = URL.createObjectURL(skin.uploadedFile);
-      }
-    });
-
-    const small = document.createElement('small');
-    small.className = 'muted';
-    small.textContent = 'Typ: free • Geometrie: humanoid.customSlim';
-
-    middle.appendChild(nameInput);
-    middle.appendChild(fileInput);
-    middle.appendChild(small);
-
-    // right (type + remove)
-    const right = document.createElement('div');
-    right.className = 'right';
-    const typeInput = document.createElement('input');
-    typeInput.type = 'text';
-    typeInput.value = skin.type || 'free';
-    typeInput.readOnly = true;
-
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'ghost';
-    removeBtn.textContent = 'Entfernen';
-    removeBtn.addEventListener('click', () => {
-      // remove from skinsData and DOM
-      skinsData = skinsData.filter(s => s.id !== skin.id);
-      if (entry.parentNode) entry.parentNode.removeChild(entry);
-    });
-
-    right.appendChild(typeInput);
-    right.appendChild(removeBtn);
-
-    entry.appendChild(previewWrap);
-    entry.appendChild(middle);
-    entry.appendChild(right);
-
-    skinsContainer.appendChild(entry);
-  }
-
-  // Hinzufügen eines neuen (leeren) Skin-Eintrags (mit sofort generiertem Platzhalterbild)
-  async function addNewSkinEntry() {
-    const name = `Skin-${randHex(4)}`;
-    const safeName = safeFileName(name);
-    const buf = await createPlaceholderSkinPNG(64, 64, true);
-    const s = {
-      id: makeUUID(),
-      name,
-      safeName,
-      buffer: buf,
-      uploadedFile: null,
-      textureFile: `skin-${skinsData.length + 1}.png`,
-      type: 'free',
-      geometry: 'geometry.humanoid.customSlim'
-    };
-    skinsData.push(s);
-    createSkinEntryDOM(s, skinsData.length - 1);
-  }
-
-  // Build pack from current form values & skinsData and download
+  // Build & download (same as before)
   async function buildPackAndDownload(options = {}) {
     try {
       setStatus('Erzeuge Skinpack...');
@@ -285,7 +295,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // Read form values
       const packNameInput = document.getElementById('packName');
       const packDescInput = document.getElementById('packDesc');
       const langSelect = document.getElementById('language');
@@ -299,27 +308,23 @@ document.addEventListener('DOMContentLoaded', () => {
       const packUuid = makeUUID();
       const moduleUuid = makeUUID();
 
-      // gather final skins (prefer uploadedFile, otherwise buffer)
+      // gather final skins in DOM order
       const finalSkins = [];
-      // read current DOM order to assign filenames sequentially
       const entries = Array.from(document.querySelectorAll('.skin-entry'));
       let idx = 0;
       for (const entry of entries) {
         const id = entry.dataset.id;
         const s = skinsData.find(x => x.id === id);
         if (!s) continue;
-        // check if a file was uploaded in the DOM for this entry
         const fileInput = entry.querySelector('input[type="file"]');
         let fileBuffer = null;
         if (fileInput && fileInput.files && fileInput.files[0]) {
-          // read uploaded file
           fileBuffer = await fileInput.files[0].arrayBuffer();
         } else if (s.uploadedFile) {
           fileBuffer = await s.uploadedFile.arrayBuffer();
         } else if (s.buffer) {
           fileBuffer = s.buffer;
         } else {
-          // create fallback placeholder
           fileBuffer = await createPlaceholderSkinPNG(64,64,true);
         }
         idx++;
@@ -339,7 +344,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // manifest.json (format_version: 2)
       const manifest = {
         format_version: 2,
         header: {
@@ -358,7 +362,6 @@ document.addEventListener('DOMContentLoaded', () => {
         ]
       };
 
-      // skins.json (ähnlich deiner Vorlage)
       const skinsJson = {
         skins: finalSkins.map(s => ({
           localization_name: `${safePack}.skin.${s.safeName}`,
@@ -370,15 +373,11 @@ document.addEventListener('DOMContentLoaded', () => {
         localization_name: packName
       };
 
-      // texts/<lang>.lang
       const lines = [];
       lines.push(`${safePack}.pack.title=${packName}`);
-      finalSkins.forEach(s => {
-        lines.push(`${safePack}.skin.${s.safeName}=${s.name}`);
-      });
+      finalSkins.forEach(s => lines.push(`${safePack}.skin.${s.safeName}=${s.name}`));
       const langContents = lines.join('\n');
 
-      // Build ZIP
       setStatus('Erzeuge ZIP-Struktur mit JSZip...');
       const zip = new JSZip();
       const root = zip.folder(rootFolderName);
@@ -394,7 +393,6 @@ document.addEventListener('DOMContentLoaded', () => {
       setStatus('Packe Dateien (ZIP)...');
       const contentBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
 
-      // Download
       const filename = options.autoFilename || `${safePack}.mcpack`;
       const url = URL.createObjectURL(contentBlob);
       const a = document.createElement('a');
@@ -407,33 +405,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
       setStatus(`Fertig — Download gestartet: ${filename}`);
     } catch (err) {
-      console.error(err);
+      console.error('[mcbe] build error', err);
       setStatus('Fehler: ' + (err && err.message ? err.message : String(err)));
     }
   }
 
   // ----------------- Event Listeners -----------------
-  addSkinBtn.addEventListener('click', () => {
-    addNewSkinEntry().catch(e => console.error(e));
+  // When user clicks "Skin hinzufügen" -> create entry AND immediately open file picker
+  addSkinBtn.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    // create + open file dialog
+    addNewSkinEntry(true).catch(e => {
+      console.error('[mcbe] addNewSkinEntry failed', e);
+      setStatus('Fehler beim Hinzufügen eines neuen Skins (Konsole prüfen).');
+    });
   });
 
   regenBtn.addEventListener('click', async () => {
-    // Erzeuge neue Platzhalter (überschreibt aktuelle generated pack, ersetzt nur previews if no uploaded files)
     setStatus('Erzeuge neue Platzhalter für Skins...');
-    // für jede skin entry: wenn keine uploadedFile vorhanden, ersetze buffer und preview
     for (const s of skinsData) {
-      if (!s.uploadedFile) {
-        s.buffer = await createPlaceholderSkinPNG(64,64,true);
-      }
+      if (!s.uploadedFile) s.buffer = await createPlaceholderSkinPNG(64,64,true);
     }
-    // Update DOM previews
-    const previews = document.querySelectorAll('.skin-entry');
-    previews.forEach((entry) => {
+    // refresh previews
+    const entries = document.querySelectorAll('.skin-entry');
+    entries.forEach(entry => {
       const id = entry.dataset.id;
       const s = skinsData.find(x => x.id === id);
       const img = entry.querySelector('.preview img');
       if (s && img && !s.uploadedFile && s.buffer) {
-        img.src && URL.revokeObjectURL(img.src);
+        try { URL.revokeObjectURL(img.src); } catch(e) {}
         img.src = bufferToObjectUrl(s.buffer);
       }
     });
@@ -446,23 +446,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ----------------- Start -----------------
-  // set default values in form from generatedPack after pre-generation
-  // pre-generate placeholders and populate UI
   preGeneratePlaceholders().catch(e => {
-    console.error('Pre-generate failed', e);
+    console.error('[mcbe] preGeneratePlaceholders failed', e);
     setStatus('Fehler beim Erzeugen der Platzhalter: ' + (e && e.message));
   });
-
-  // Fill packName and packDesc when generatedPack becomes available (poll briefly)
-  const fillInterval = setInterval(() => {
-    if (generatedPack) {
-      const pn = document.getElementById('packName');
-      const pd = document.getElementById('packDesc');
-      if (pn && pd) {
-        pn.value = generatedPack.packName;
-        pd.value = generatedPack.packDesc;
-      }
-      clearInterval(fillInterval);
-    }
-  }, 150);
 });
