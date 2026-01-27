@@ -23,13 +23,14 @@ function makeUUID() {
   return [...bytes].map((b, i) => (i === 4 || i === 6 || i === 8 || i === 10 ? '-' : '') + b.toString(16).padStart(2, '0')).join('');
 }
 
-const ALLOWED_SIZES = [{ w: 64, h: 32 }, { w: 64, h: 64 }, { w: 128, h: 128 }];
+// Allowed skin sizes
+  const ALLOWED_SIZES = [{ w: 64, h: 32 }, { w: 64, h: 64 }, { w: 128, h: 128 }];
 
+// Validate uploaded PNG
   async function validateSkinFile(file) {
     if (!file) return { ok: false, msg: 'Keine Datei' };
     const name = (file.name || '').toLowerCase();
     if (!name.endsWith('.png') && file.type !== 'image/png') return { ok: false, msg: 'Nur PNG-Dateien sind erlaubt.' };
-
     const url = URL.createObjectURL(file);
     const img = new Image();
     const p = new Promise((resolve) => {
