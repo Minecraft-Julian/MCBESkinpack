@@ -23,6 +23,29 @@ function makeUUID() {
   return [...bytes].map((b, i) => (i === 4 || i === 6 || i === 8 || i === 10 ? '-' : '') + b.toString(16).padStart(2, '0')).join('');
 }
 
+const ALLOWED_SIZES = [{ w: 64, h: 32 }, { w: 64, h: 64 }, { w: 128, h: 128 }];
+
+  async function validateSkinFile(file) {
+    if (!file) return { ok: false, msg: 'Keine Datei' };
+    const name = (file.name || '').toLowerCase();
+    if (!name.endsWith('.png') && file.type !== 'image/png') return { ok: false, msg: 'Nur PNG-Dateien sind erlaubt.' };
+
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    const p = new Promise((resolve) => {
+      img.onload = () => {
+        const w = img.width, h = img.height;
+        URL.revokeObjectURL(url);
+        const ok = ALLOWED_SIZES.some(s => s.w === w && s.h === h);
+        if (!ok) resolve({ ok: false, msg: `Ungültige Bildgröße ${w}×${h}. Erlaubt: ${ALLOWED_SIZES.map(s => s.w + '×' + s.h).join(', ')}` });
+        else resolve({ ok: true, width: w, height: h });
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve({ ok: false, msg: 'Bild konnte nicht geladen werden.' }); };
+    });
+    img.src = url;
+    return p;
+  }
+
 function randHex(len = 6) {
   const chars = '0123456789abcdef';
   let s = '';
