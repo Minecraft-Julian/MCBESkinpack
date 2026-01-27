@@ -1,7 +1,10 @@
 // 3D Skin Preview using Three.js
 // Creates a Minecraft player model with skin texture that can rotate
 
-class Skin3DRenderer {
+import * as THREE from './three.module.min.js';
+import { OrbitControls } from './OrbitControls.js';
+
+export class Skin3DRenderer {
   constructor(container, options = {}) {
     this.container = container;
     this.width = options.width || 200;
@@ -53,7 +56,7 @@ class Skin3DRenderer {
     this.scene.add(directionalLight2);
     
     // OrbitControls (disabled by default, enabled in zoom mode)
-    this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableZoom = false;
     this.controls.enablePan = false;
     this.controls.enabled = false;
@@ -256,7 +259,7 @@ class Skin3DRenderer {
 }
 
 // Validation utilities
-function validateSkinFile(file) {
+export function validateSkinFile(file) {
   return new Promise((resolve, reject) => {
     // Check file type
     if (!file.type || file.type !== 'image/png') {

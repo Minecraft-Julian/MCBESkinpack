@@ -5,6 +5,8 @@
 //
 // Benötigt: JSZip (global JSZip)
 
+import { Skin3DRenderer, validateSkinFile } from './skin3d.js';
+
 // ----------------- Utilities -----------------
 function safeFileName(name) {
   return (name || 'skinpack')
@@ -344,7 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
     skinsContainer.appendChild(entry);
 
     // Return useful references
-    return { entry, fileInput, img, nameInput };
+    return { entry, fileInput, nameInput };
   }
 
   // Add a new skin entry (optionally open the file dialog immediately)
