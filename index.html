@@ -7,6 +7,9 @@
   <link rel="stylesheet" href="style.css" />
   <!-- JSZip from CDN -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <!-- Three.js from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
 </head>
 <body>
   <main class="container">
@@ -37,7 +40,7 @@
         <div class="actions-inline">
           <button type="button" id="addSkinBtn" class="ghost">Skin hinzufügen</button>
         </div>
-        <p class="muted">Jeder Skin hat eine Vorschau. Du kannst eine eigene PNG hochladen — ansonsten wird das Platzhalterbild verwendet.</p>
+        <p class="muted">Jeder Skin hat eine 3D-Vorschau, die sich dreht. Klicke auf die Vorschau für eine größere Ansicht mit Orbit-Controls. Du kannst eine eigene PNG (64x64 Pixel) hochladen — ansonsten wird das Platzhalterbild verwendet.</p>
       </fieldset>
 
       <fieldset>
@@ -59,6 +62,7 @@
     </footer>
   </main>
 
+  <script src="skin3d.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
