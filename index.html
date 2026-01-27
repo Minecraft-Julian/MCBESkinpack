@@ -7,10 +7,6 @@
   <link rel="stylesheet" href="style.css" />
   <!-- JSZip from CDN -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-
-  <!-- Three.js + OrbitControls (nur hinzugefügt) -->
-  <script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
-  <script src="https://unpkg.com/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
 </head>
 <body>
   <main class="container">
@@ -29,7 +25,7 @@
         <div class="inline-actions">
           <button type="button" id="regenBtn" class="ghost">Platzhalter neu erzeugen</button>
           <label class="small">
-            <input type="checkbox" id="autoDownloadOnLoad" />
+            <input type="checkbox" id="autoDownloadOnLoad" checked />
             Automatisch beim Laden herunterladen
           </label>
         </div>
@@ -62,13 +58,6 @@
       <p>Kleines Tool • Läuft komplett im Browser • Manifest Version: 2 • Min engine version: 1.20.0</p>
     </footer>
   </main>
-
-  <!-- Fullscreen viewer overlay (Three.js canvas wird hier erzeugt) -->
-  <div id="viewerOverlay" class="viewer-overlay" hidden>
-    <div id="viewerBox" class="viewer-box" role="dialog" aria-modal="true">
-      <div id="viewerCanvasContainer" class="viewer-canvas"></div>
-    </div>
-  </div>
 
   <script src="script.js"></script>
 </body>
