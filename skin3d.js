@@ -160,25 +160,38 @@ export class Skin3DRenderer {
     
     const texturedParts = ['head', 'body', 'rightArm', 'leftArm', 'rightLeg', 'leftLeg'];
     
-    texturedParts.forEach(partName => {
+    // Track old texture to dispose it only once after all materials are updated
+    let oldTexture = null;
+    
+    texturedParts.forEach((partName, index) => {
       const part = this.playerModel.getObjectByName(partName);
       if (part) {
-        // Dispose old material and texture to prevent memory leak
+        // Save reference to old texture from first part (all parts share same texture)
+        if (index === 0 && part.material && part.material.map) {
+          oldTexture = part.material.map;
+        }
+        
+        // Dispose old material
         if (part.material) {
-          if (part.material.map) part.material.map.dispose();
           part.material.dispose();
         }
         
+        // Share the same texture across all body parts to save memory
         part.material = new THREE.MeshLambertMaterial({
-          map: texture.clone(),
+          map: texture,
           transparent: true
         });
         part.material.map.needsUpdate = true;
         
-        // Apply basic UV mapping
+        // Apply UV mapping
         this.applyUVMapping(part, partName);
       }
     });
+    
+    // Dispose old texture once after all materials are updated
+    if (oldTexture && oldTexture !== texture) {
+      oldTexture.dispose();
+    }
   }
   
   applyUVMapping(mesh, partName) {
