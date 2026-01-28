@@ -228,3 +228,120 @@ button.ghost{
   font-size:13px;
   text-align:center;
 }
+
+/* Comments Section */
+.comments-section {
+  margin-top: 24px;
+  padding: 20px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,255,255,0.03);
+}
+
+.comments-section h2 {
+  margin: 0 0 16px 0;
+  font-size: 18px;
+  color: var(--accent);
+}
+
+.comments-section h3 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  color: var(--muted);
+}
+
+.comments-list {
+  margin-bottom: 24px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.comment {
+  background: var(--glass);
+  border: 1px solid rgba(255,255,255,0.03);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.comment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.comment-author {
+  font-weight: 600;
+  color: var(--accent);
+  font-size: 14px;
+}
+
+.comment-date {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.comment-text {
+  color: #e6eef6;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.comment-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+}
+
+.comment-actions button {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid rgba(255,255,255,0.03);
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.comment-reply {
+  margin-top: 12px;
+  padding-left: 16px;
+  border-left: 2px solid var(--accent);
+}
+
+.comment-form {
+  padding: 16px;
+  background: var(--glass);
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.03);
+}
+
+.comment-form input,
+.comment-form textarea {
+  margin-bottom: 12px;
+}
+
+.comment-form button {
+  width: 100%;
+}
+
+.reply-form {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(255,255,255,0.02);
+  border-radius: 6px;
+}
+
+.reply-form input,
+.reply-form textarea {
+  margin-bottom: 8px;
+  font-size: 13px;
+  padding: 8px;
+}
+
+.reply-form button {
+  width: 100%;
+  font-size: 13px;
+  padding: 8px;
+}

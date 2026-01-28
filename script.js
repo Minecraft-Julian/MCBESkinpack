@@ -88,6 +88,50 @@ const LANGS = [
 
 let generatedPack = null;
 let skinsData = []; // { id, name, safeName, buffer, uploadedFile, textureFile, type, geometry }
+let hasGeneratedInitialPlaceholders = false; // Track if initial placeholders were generated
+
+// ----------------- localStorage Functions -----------------
+function saveFormToLocalStorage() {
+  try {
+    const packNameInput = document.getElementById('packName');
+    const packDescInput = document.getElementById('packDesc');
+    const languageSelect = document.getElementById('language');
+    
+    const formData = {
+      packName: packNameInput?.value || '',
+      packDesc: packDescInput?.value || '',
+      language: languageSelect?.value || 'en_US',
+      skins: skinsData.map(s => ({
+        id: s.id,
+        name: s.name,
+        safeName: s.safeName,
+        type: s.type,
+        geometry: s.geometry,
+        hasUploadedFile: !!s.uploadedFile
+      })),
+      timestamp: Date.now()
+    };
+    
+    localStorage.setItem('multiNotizenV5', JSON.stringify(formData));
+    console.log('[mcbe] Form data saved to localStorage');
+  } catch (e) {
+    console.warn('[mcbe] Failed to save to localStorage:', e);
+  }
+}
+
+function loadFormFromLocalStorage() {
+  try {
+    const saved = localStorage.getItem('multiNotizenV5');
+    if (!saved) return null;
+    
+    const formData = JSON.parse(saved);
+    console.log('[mcbe] Loaded form data from localStorage', formData);
+    return formData;
+  } catch (e) {
+    console.warn('[mcbe] Failed to load from localStorage:', e);
+    return null;
+  }
+}
 
 // ----------------- DOM & Init -----------------
 document.addEventListener('DOMContentLoaded', () => {
@@ -120,7 +164,19 @@ document.addEventListener('DOMContentLoaded', () => {
   languageSelect.addEventListener('change', () => {
     setStatus(`Sprache gewählt: ${languageSelect.value}`);
     console.log('[mcbe] language changed:', languageSelect.value);
+    saveFormToLocalStorage();
   });
+  
+  // Auto-save form fields on change
+  const packNameInput = document.getElementById('packName');
+  const packDescInput = document.getElementById('packDesc');
+  
+  if (packNameInput) {
+    packNameInput.addEventListener('input', () => saveFormToLocalStorage());
+  }
+  if (packDescInput) {
+    packDescInput.addEventListener('input', () => saveFormToLocalStorage());
+  }
 
   function setStatus(t) {
     if (statusEl) statusEl.textContent = t;
@@ -274,6 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
     nameInput.addEventListener('input', () => {
       skin.name = nameInput.value.trim();
       skin.safeName = safeFileName(skin.name);
+      saveFormToLocalStorage();
     });
 
     const fileInput = document.createElement('input');
@@ -300,6 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           
           setStatus(`Skin "${skin.name}" erfolgreich hochgeladen (64x64px).`);
+          saveFormToLocalStorage();
         } catch (error) {
           setStatus(`Fehler: ${error.message}`);
           fileInput.value = ''; // Reset file input
@@ -334,6 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       skinsData = skinsData.filter(s => s.id !== skin.id);
       if (entry.parentNode) entry.parentNode.removeChild(entry);
+      saveFormToLocalStorage();
     });
 
     right.appendChild(typeInput);
@@ -366,6 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     skinsData.push(s);
     const { fileInput } = createSkinEntryDOM(s);
+    saveFormToLocalStorage();
     // If requested, open the file picker immediately (must be in user gesture context)
     if (openFileDialog) {
       try {
@@ -388,7 +448,46 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Pre-generate placeholders and pre-fill form
-  async function preGeneratePlaceholders() {
+  async function preGeneratePlaceholders(forceRegenerate = false) {
+    // Try to load from localStorage first
+    if (!forceRegenerate) {
+      const savedData = loadFormFromLocalStorage();
+      if (savedData) {
+        setStatus('Lade gespeicherte Daten...');
+        
+        // Restore form fields
+        const pn = document.getElementById('packName');
+        const pd = document.getElementById('packDesc');
+        if (pn) pn.value = savedData.packName || '';
+        if (pd) pd.value = savedData.packDesc || '';
+        if (languageSelect) languageSelect.value = savedData.language || 'en_US';
+        
+        // Restore skins
+        skinsData = [];
+        for (const savedSkin of savedData.skins || []) {
+          const buf = await createPlaceholderSkinPNG(64, 64, true);
+          skinsData.push({
+            id: savedSkin.id || makeUUID(),
+            name: savedSkin.name || `Skin-${randHex(4)}`,
+            safeName: savedSkin.safeName || safeFileName(savedSkin.name),
+            buffer: buf,
+            uploadedFile: null,
+            textureFile: `skin-${skinsData.length + 1}.png`,
+            type: savedSkin.type || 'free',
+            geometry: savedSkin.geometry || 'geometry.humanoid.customSlim'
+          });
+        }
+        
+        if (skinsData.length > 0) {
+          populateFormFromGenerated();
+          setStatus('Gespeicherte Daten geladen.');
+          hasGeneratedInitialPlaceholders = true;
+          return;
+        }
+      }
+    }
+    
+    // Generate new placeholders
     setStatus('Erzeuge Platzhalter für Skinpack...');
     const packBase = `skinpack-${randHex(6)}`;
     const packName = `Pack ${randHex(4)}`;
@@ -423,6 +522,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     populateFormFromGenerated();
     setStatus('Platzhalter erzeugt.');
+    saveFormToLocalStorage();
+    hasGeneratedInitialPlaceholders = true;
     // Auto-download handled elsewhere if desired
   }
 
@@ -580,12 +681,236 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
     setStatus('Neue Platzhalter wurden erzeugt.');
+    saveFormToLocalStorage();
   });
 
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     await buildPackAndDownload();
   });
+
+  // ----------------- Comments System -----------------
+  let comments = [];
+  
+  // Load comments from localStorage
+  function loadComments() {
+    try {
+      const saved = localStorage.getItem('mcbe_comments');
+      if (saved) {
+        comments = JSON.parse(saved);
+      }
+    } catch (e) {
+      console.warn('[mcbe] Failed to load comments:', e);
+    }
+  }
+  
+  // Save comments to localStorage
+  function saveComments() {
+    try {
+      localStorage.setItem('mcbe_comments', JSON.stringify(comments));
+    } catch (e) {
+      console.warn('[mcbe] Failed to save comments:', e);
+    }
+  }
+  
+  // Render comments
+  function renderComments() {
+    const commentsList = document.getElementById('commentsList');
+    if (!commentsList) return;
+    
+    if (comments.length === 0) {
+      commentsList.innerHTML = '<p class="muted">Noch keine Kommentare. Sei der Erste!</p>';
+      return;
+    }
+    
+    commentsList.innerHTML = comments.map(comment => {
+      const date = new Date(comment.timestamp);
+      const dateStr = date.toLocaleDateString('de-DE') + ' ' + date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      
+      let repliesHTML = '';
+      if (comment.replies && comment.replies.length > 0) {
+        repliesHTML = comment.replies.map(reply => {
+          const replyDate = new Date(reply.timestamp);
+          const replyDateStr = replyDate.toLocaleDateString('de-DE') + ' ' + replyDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+          return `
+            <div class="comment comment-reply">
+              <div class="comment-header">
+                <span class="comment-author">${escapeHtml(reply.name)}</span>
+                <span class="comment-date">${replyDateStr}</span>
+              </div>
+              <div class="comment-text">${escapeHtml(reply.text)}</div>
+            </div>
+          `;
+        }).join('');
+      }
+      
+      return `
+        <div class="comment" data-id="${comment.id}">
+          <div class="comment-header">
+            <span class="comment-author">${escapeHtml(comment.name)}</span>
+            <span class="comment-date">${dateStr}</span>
+          </div>
+          <div class="comment-text">${escapeHtml(comment.text)}</div>
+          <div class="comment-actions">
+            <button type="button" class="reply-btn" data-id="${comment.id}">Antworten</button>
+          </div>
+          ${repliesHTML}
+          <div class="reply-form-container" data-id="${comment.id}" style="display: none;"></div>
+        </div>
+      `;
+    }).join('');
+    
+    // Add event listeners for reply buttons
+    document.querySelectorAll('.reply-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const commentId = e.target.dataset.id;
+        showReplyForm(commentId);
+      });
+    });
+  }
+  
+  // Escape HTML to prevent XSS
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  
+  // Show reply form
+  function showReplyForm(commentId) {
+    const container = document.querySelector(`.reply-form-container[data-id="${commentId}"]`);
+    if (!container) return;
+    
+    container.style.display = 'block';
+    container.innerHTML = `
+      <div class="reply-form">
+        <h4 style="margin: 0 0 8px 0; font-size: 14px; color: var(--muted);">Antwort schreiben</h4>
+        <input type="text" class="reply-name" placeholder="Dein Name" required />
+        <textarea class="reply-text" rows="3" placeholder="Deine Antwort..." required></textarea>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="submit-reply" style="flex: 1;">Absenden</button>
+          <button type="button" class="cancel-reply" style="flex: 1; background: transparent; color: var(--muted);">Abbrechen</button>
+        </div>
+      </div>
+    `;
+    
+    container.querySelector('.submit-reply').addEventListener('click', () => {
+      const nameInput = container.querySelector('.reply-name');
+      const textInput = container.querySelector('.reply-text');
+      
+      if (!nameInput.value.trim() || !textInput.value.trim()) {
+        alert('Bitte Name und Text eingeben.');
+        return;
+      }
+      
+      addReply(commentId, nameInput.value.trim(), textInput.value.trim());
+      container.style.display = 'none';
+    });
+    
+    container.querySelector('.cancel-reply').addEventListener('click', () => {
+      container.style.display = 'none';
+    });
+  }
+  
+  // Add reply
+  function addReply(commentId, name, text) {
+    const comment = comments.find(c => c.id === commentId);
+    if (!comment) return;
+    
+    if (!comment.replies) {
+      comment.replies = [];
+    }
+    
+    comment.replies.push({
+      id: makeUUID(),
+      name,
+      text,
+      timestamp: Date.now()
+    });
+    
+    saveComments();
+    renderComments();
+    setStatus('Antwort hinzugefügt.');
+  }
+  
+  // Send email notification via EmailJS
+  async function sendEmailNotification(commentData) {
+    // Check if emailjs is available
+    if (typeof emailjs === 'undefined') {
+      console.warn('[mcbe] EmailJS not loaded - skipping email notification');
+      return;
+    }
+    
+    try {
+      // Template parameters for EmailJS
+      // You need to create a template in EmailJS dashboard
+      // Template should have variables: from_name, message, reply_to
+      const templateParams = {
+        from_name: commentData.name,
+        message: commentData.text,
+        reply_to: 'noreply@example.com', // Change this to actual email
+        to_name: 'Minecraft-Julian'
+      };
+      
+      // Replace 'YOUR_SERVICE_ID' and 'YOUR_TEMPLATE_ID' with actual values from EmailJS
+      await emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', templateParams);
+      console.log('[mcbe] Email notification sent successfully');
+    } catch (error) {
+      console.warn('[mcbe] Failed to send email notification:', error);
+      // Don't show error to user - notification failure shouldn't block comment posting
+    }
+  }
+  
+  // Add new comment
+  async function addComment(name, text) {
+    const newComment = {
+      id: makeUUID(),
+      name,
+      text,
+      timestamp: Date.now(),
+      replies: []
+    };
+    
+    comments.unshift(newComment); // Add to beginning
+    saveComments();
+    renderComments();
+    
+    // Send email notification asynchronously
+    sendEmailNotification(newComment).catch(e => {
+      console.warn('[mcbe] Email notification error:', e);
+    });
+    
+    setStatus('Kommentar hinzugefügt.');
+  }
+  
+  // Initialize comments system
+  const submitCommentBtn = document.getElementById('submitComment');
+  if (submitCommentBtn) {
+    submitCommentBtn.addEventListener('click', () => {
+      const nameInput = document.getElementById('commentName');
+      const textInput = document.getElementById('commentText');
+      
+      if (!nameInput || !textInput) return;
+      
+      const name = nameInput.value.trim();
+      const text = textInput.value.trim();
+      
+      if (!name || !text) {
+        alert('Bitte Name und Kommentar eingeben.');
+        return;
+      }
+      
+      addComment(name, text);
+      
+      // Clear form
+      nameInput.value = '';
+      textInput.value = '';
+    });
+  }
+  
+  // Load and render comments on page load
+  loadComments();
+  renderComments();
 
   // ----------------- Start -----------------
   preGeneratePlaceholders().catch(e => {
