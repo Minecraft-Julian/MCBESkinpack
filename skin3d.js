@@ -102,7 +102,7 @@ export class Skin3DRenderer {
     this.playerModel.add(rightArm);
     
     // Left Arm (3x12x4 for slim model)
-    const leftArm = new THREE.Mesh(armGeometry, armMaterial.clone());
+    const leftArm = new THREE.Mesh(armGeometry, new THREE.MeshLambertMaterial({ color: 0x888888 }));
     leftArm.position.set(5.5, 6, 0);
     leftArm.name = 'leftArm';
     this.playerModel.add(leftArm);
@@ -116,7 +116,7 @@ export class Skin3DRenderer {
     this.playerModel.add(rightLeg);
     
     // Left Leg (4x12x4)
-    const leftLeg = new THREE.Mesh(legGeometry, legMaterial.clone());
+    const leftLeg = new THREE.Mesh(legGeometry, new THREE.MeshLambertMaterial({ color: 0x888888 }));
     leftLeg.position.set(2, -6, 0);
     leftLeg.name = 'leftLeg';
     this.playerModel.add(leftLeg);
@@ -161,12 +161,14 @@ export class Skin3DRenderer {
     const texturedParts = ['head', 'body', 'rightArm', 'leftArm', 'rightLeg', 'leftLeg'];
     
     // Track old texture to dispose it only once after all materials are updated
+    // Note: After first texture application, all parts share same texture
     let oldTexture = null;
     
     texturedParts.forEach((partName, index) => {
       const part = this.playerModel.getObjectByName(partName);
       if (part) {
-        // Save reference to old texture from first part (all parts share same texture)
+        // Save reference to old texture from first part that has one
+        // (all parts share same texture after initial texture application)
         if (index === 0 && part.material && part.material.map) {
           oldTexture = part.material.map;
         }
@@ -344,16 +346,27 @@ export class Skin3DRenderer {
     }
     
     if (this.scene) {
+      // Collect unique textures to dispose them only once
+      const textures = new Set();
+      
       this.scene.traverse((object) => {
-        if (object.geometry) object.geometry.dispose();
+        if (object.geometry) {
+          object.geometry.dispose();
+        }
         if (object.material) {
-          if (Array.isArray(object.material)) {
-            object.material.forEach(material => material.dispose());
-          } else {
-            object.material.dispose();
-          }
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          materials.forEach(material => {
+            // Collect texture reference before disposing material
+            if (material.map) {
+              textures.add(material.map);
+            }
+            material.dispose();
+          });
         }
       });
+      
+      // Dispose each unique texture once
+      textures.forEach(texture => texture.dispose());
     }
   }
 }
