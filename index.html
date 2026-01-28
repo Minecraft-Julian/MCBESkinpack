@@ -7,6 +7,15 @@
   <link rel="stylesheet" href="style.css" />
   <!-- JSZip local -->
   <script src="jszip.min.js"></script>
+  <!-- EmailJS for comment notifications -->
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  <script type="text/javascript">
+    (function(){
+      // Initialize EmailJS with your public key
+      // You need to replace 'YOUR_PUBLIC_KEY' with actual key from https://www.emailjs.com/
+      emailjs.init('YOUR_PUBLIC_KEY');
+    })();
+  </script>
 </head>
 <body>
   <main class="container">
@@ -51,6 +60,18 @@
         <button type="submit" id="generateBtn">Skinpack erzeugen & herunterladen</button>
       </div>
     </form>
+
+    <section id="commentsSection" class="comments-section">
+      <h2>Kommentare</h2>
+      <div id="commentsList" class="comments-list"></div>
+      
+      <div class="comment-form">
+        <h3>Neuer Kommentar</h3>
+        <input type="text" id="commentName" placeholder="Dein Name" required />
+        <textarea id="commentText" rows="4" placeholder="Schreibe einen Kommentar..." required></textarea>
+        <button type="button" id="submitComment">Kommentar absenden</button>
+      </div>
+    </section>
 
     <section id="status" class="status" aria-live="polite"></section>
 
