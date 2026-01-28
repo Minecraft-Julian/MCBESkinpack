@@ -37,6 +37,12 @@ function bufferToObjectUrl(buffer) {
   return URL.createObjectURL(blob);
 }
 
+// Convert base64 data URL to ArrayBuffer
+async function dataURLToArrayBuffer(dataURL) {
+  const response = await fetch(dataURL);
+  return await response.arrayBuffer();
+}
+
 // Kombiniere Basis-Skin und Overlay zu finalem Skin (Base64)
 async function combineSkinLayers(baseSkinBuffer, overlayBuffer = null) {
   return new Promise((resolve, reject) => {
@@ -64,9 +70,15 @@ async function combineSkinLayers(baseSkinBuffer, overlayBuffer = null) {
             ctx.drawImage(overlayImg, 0, 0, 64, 64);
             URL.revokeObjectURL(overlayUrl);
             
-            // Convert to base64
-            const base64 = canvas.toDataURL('image/png');
-            resolve(base64);
+            // Convert to ArrayBuffer for consistency
+            canvas.toBlob(async (blob) => {
+              if (!blob) {
+                reject(new Error('Failed to create blob'));
+                return;
+              }
+              const arrayBuffer = await blob.arrayBuffer();
+              resolve(arrayBuffer);
+            }, 'image/png');
           };
           
           overlayImg.onerror = () => {
@@ -76,9 +88,15 @@ async function combineSkinLayers(baseSkinBuffer, overlayBuffer = null) {
           
           overlayImg.src = overlayUrl;
         } else {
-          // No overlay, just return base64 of base skin
-          const base64 = canvas.toDataURL('image/png');
-          resolve(base64);
+          // No overlay, return ArrayBuffer of base skin
+          canvas.toBlob(async (blob) => {
+            if (!blob) {
+              reject(new Error('Failed to create blob'));
+              return;
+            }
+            const arrayBuffer = await blob.arrayBuffer();
+            resolve(arrayBuffer);
+          }, 'image/png');
         }
       };
       
@@ -92,12 +110,6 @@ async function combineSkinLayers(baseSkinBuffer, overlayBuffer = null) {
       reject(e);
     }
   });
-}
-
-// Convert base64 data URL to ArrayBuffer
-async function dataURLToArrayBuffer(dataURL) {
-  const response = await fetch(dataURL);
-  return await response.arrayBuffer();
 }
 
 // Erzeuge Platzhalter-Skin (Canvas) -> Promise<ArrayBuffer>
@@ -373,10 +385,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return; // No texture to load
       }
       
-      // For now, we just use the base skin (no overlay implementation yet)
-      // In the future, you could add overlay support here
-      const combinedBase64 = await combineSkinLayers(skinBuffer, null);
-      await renderer3D.loadSkinTexture(combinedBase64);
+      // Combine base skin with overlay (if any)
+      const combinedBuffer = await combineSkinLayers(skinBuffer, null);
+      const blob = new Blob([combinedBuffer], { type: 'image/png' });
+      await renderer3D.loadSkinTexture(blob);
     } catch (e) {
       console.warn('[mcbe] Failed to load combined skin texture:', e);
     }
@@ -784,8 +796,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   regenBtn.addEventListener('click', async () => {
     if (confirm('Möchten Sie alle Daten löschen und neu generieren? Dies kann nicht rückgängig gemacht werden.')) {
-      // Clear all localStorage
-      localStorage.clear();
+      // Clear only the application-specific localStorage keys
+      localStorage.removeItem('multiNotizenV5');
+      localStorage.removeItem('mcbe_comments');
       // Reload the page
       location.reload();
     }
