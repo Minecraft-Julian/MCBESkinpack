@@ -852,7 +852,7 @@ document.addEventListener('DOMContentLoaded', () => {
         to_name: 'Minecraft-Julian'
       };
       
-      // Replace 'YOUR_SERVICE_ID' and 'YOUR_TEMPLATE_ID' with actual values from EmailJS
+      // Replace 'service_hlviq2s' and 'template_e2w76gj' with actual values from EmailJS
       await emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', templateParams);
       console.log('[mcbe] Email notification sent successfully');
     } catch (error) {
