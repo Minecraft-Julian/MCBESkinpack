@@ -13,6 +13,7 @@ export class Skin3DRenderer {
     this.height = options.height || 200;
     this.autoRotate = options.autoRotate !== false;
     this.isZoomed = false;
+    this.isSlim = options.isSlim !== false; // Default to slim model (3px arms)
     
     this.scene = null;
     this.camera = null;
@@ -74,7 +75,8 @@ export class Skin3DRenderer {
   }
   
   createPlayerModel() {
-    // Create a simplified Minecraft player model (humanoid.customSlim compatible)
+    // Create a Minecraft player model with proper proportions
+    // Compatible with both Slim (3px arms) and Classic (4px arms) models
     this.playerModel = new THREE.Group();
     
     // Head (8x8x8)
@@ -93,30 +95,38 @@ export class Skin3DRenderer {
     body.name = 'body';
     this.playerModel.add(body);
     
-    // Right Arm (3x12x4 for slim model) - using visible solid color
-    const armGeometry = new THREE.BoxGeometry(3, 12, 4);
-    const armMaterial = new THREE.MeshLambertMaterial({ color: 0x99cc66 });
-    const rightArm = new THREE.Mesh(armGeometry, armMaterial);
-    rightArm.position.set(-5.5, 6, 0);
+    // Arms - size depends on model type (Slim = 3px, Classic = 4px)
+    const armWidth = this.isSlim ? 3 : 4;
+    const armXOffset = this.isSlim ? 5.5 : 6;
+    
+    // Right Arm
+    const rightArmGeometry = new THREE.BoxGeometry(armWidth, 12, 4);
+    const rightArmMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
+    const rightArm = new THREE.Mesh(rightArmGeometry, rightArmMaterial);
+    rightArm.position.set(-armXOffset, 6, 0);
     rightArm.name = 'rightArm';
     this.playerModel.add(rightArm);
     
-    // Left Arm (3x12x4 for slim model) - using visible solid color
-    const leftArm = new THREE.Mesh(armGeometry, armMaterial.clone());
-    leftArm.position.set(5.5, 6, 0);
+    // Left Arm
+    const leftArmGeometry = new THREE.BoxGeometry(armWidth, 12, 4);
+    const leftArmMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
+    const leftArm = new THREE.Mesh(leftArmGeometry, leftArmMaterial);
+    leftArm.position.set(armXOffset, 6, 0);
     leftArm.name = 'leftArm';
     this.playerModel.add(leftArm);
     
-    // Right Leg (4x12x4) - using visible solid color
-    const legGeometry = new THREE.BoxGeometry(4, 12, 4);
-    const legMaterial = new THREE.MeshLambertMaterial({ color: 0x99cc66 });
-    const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
+    // Right Leg (4x12x4)
+    const rightLegGeometry = new THREE.BoxGeometry(4, 12, 4);
+    const rightLegMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
+    const rightLeg = new THREE.Mesh(rightLegGeometry, rightLegMaterial);
     rightLeg.position.set(-2, -6, 0);
     rightLeg.name = 'rightLeg';
     this.playerModel.add(rightLeg);
     
-    // Left Leg (4x12x4) - using visible solid color
-    const leftLeg = new THREE.Mesh(legGeometry, legMaterial.clone());
+    // Left Leg (4x12x4)
+    const leftLegGeometry = new THREE.BoxGeometry(4, 12, 4);
+    const leftLegMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
+    const leftLeg = new THREE.Mesh(leftLegGeometry, leftLegMaterial);
     leftLeg.position.set(2, -6, 0);
     leftLeg.name = 'leftLeg';
     this.playerModel.add(leftLeg);
@@ -156,11 +166,11 @@ export class Skin3DRenderer {
   
   applySkinTexture(texture) {
     // Apply UV mapping for Minecraft skin format (64x64, 64x32, or 128x128)
-    // Apply texture only to head and body, keep arms and legs with solid colors
+    // Apply texture to all body parts (head, body, arms, legs)
     
-    const texturedParts = ['head', 'body']; // Only head and body get texture
+    const allParts = ['head', 'body', 'rightArm', 'leftArm', 'rightLeg', 'leftLeg'];
     
-    texturedParts.forEach(partName => {
+    allParts.forEach(partName => {
       const part = this.playerModel.getObjectByName(partName);
       if (part) {
         // Dispose old material and texture to prevent memory leak
@@ -175,13 +185,10 @@ export class Skin3DRenderer {
         });
         part.material.map.needsUpdate = true;
         
-        // Apply basic UV mapping
+        // Apply UV mapping based on model type and part
         this.applyUVMapping(part, partName);
       }
     });
-    
-    // Arms and legs keep their solid color materials (0x99cc66)
-    // No texture applied to: rightArm, leftArm, rightLeg, leftLeg
   }
   
   applyUVMapping(mesh, partName) {
@@ -191,6 +198,45 @@ export class Skin3DRenderer {
     
     // Minecraft skin UV coordinates for each body part
     // Format: [u, v] where u,v are in range 0-1
+    // Using 64x64 texture coordinates (standard Minecraft skin format)
+    
+    // Determine arm UV mapping based on model type (Slim vs Classic)
+    const rightArmUV = this.isSlim ? {
+      // Right arm slim (3x12x4) - Old format for compatibility
+      right:  [[44/64, 20/64], [47/64, 20/64], [47/64, 32/64], [44/64, 32/64]],
+      left:   [[40/64, 20/64], [43/64, 20/64], [43/64, 32/64], [40/64, 32/64]],
+      top:    [[43/64, 16/64], [47/64, 16/64], [47/64, 20/64], [43/64, 20/64]],
+      bottom: [[47/64, 16/64], [51/64, 16/64], [51/64, 20/64], [47/64, 20/64]],
+      front:  [[43/64, 20/64], [47/64, 20/64], [47/64, 32/64], [43/64, 32/64]],
+      back:   [[51/64, 20/64], [55/64, 20/64], [55/64, 32/64], [51/64, 32/64]]
+    } : {
+      // Right arm classic (4x12x4)
+      right:  [[44/64, 20/64], [48/64, 20/64], [48/64, 32/64], [44/64, 32/64]],
+      left:   [[40/64, 20/64], [44/64, 20/64], [44/64, 32/64], [40/64, 32/64]],
+      top:    [[44/64, 16/64], [48/64, 16/64], [48/64, 20/64], [44/64, 20/64]],
+      bottom: [[48/64, 16/64], [52/64, 16/64], [52/64, 20/64], [48/64, 20/64]],
+      front:  [[44/64, 20/64], [48/64, 20/64], [48/64, 32/64], [44/64, 32/64]],
+      back:   [[52/64, 20/64], [56/64, 20/64], [56/64, 32/64], [52/64, 32/64]]
+    };
+    
+    const leftArmUV = this.isSlim ? {
+      // Left arm slim (3x12x4) - New format (64x64)
+      right:  [[36/64, 52/64], [39/64, 52/64], [39/64, 64/64], [36/64, 64/64]],
+      left:   [[32/64, 52/64], [35/64, 52/64], [35/64, 64/64], [32/64, 64/64]],
+      top:    [[35/64, 48/64], [39/64, 48/64], [39/64, 52/64], [35/64, 52/64]],
+      bottom: [[39/64, 48/64], [43/64, 48/64], [43/64, 52/64], [39/64, 52/64]],
+      front:  [[35/64, 52/64], [39/64, 52/64], [39/64, 64/64], [35/64, 64/64]],
+      back:   [[43/64, 52/64], [47/64, 52/64], [47/64, 64/64], [43/64, 64/64]]
+    } : {
+      // Left arm classic (4x12x4) - New format (64x64)
+      right:  [[36/64, 52/64], [40/64, 52/64], [40/64, 64/64], [36/64, 64/64]],
+      left:   [[32/64, 52/64], [36/64, 52/64], [36/64, 64/64], [32/64, 64/64]],
+      top:    [[36/64, 48/64], [40/64, 48/64], [40/64, 52/64], [36/64, 52/64]],
+      bottom: [[40/64, 48/64], [44/64, 48/64], [44/64, 52/64], [40/64, 52/64]],
+      front:  [[36/64, 52/64], [40/64, 52/64], [40/64, 64/64], [36/64, 64/64]],
+      back:   [[44/64, 52/64], [48/64, 52/64], [48/64, 64/64], [44/64, 64/64]]
+    };
+    
     const uvMappings = {
       head: {
         // Head is 8x8x8 pixels at position (0, 0) and (32, 0) in the texture
@@ -210,24 +256,8 @@ export class Skin3DRenderer {
         front:  [[20/64, 20/64], [28/64, 20/64], [28/64, 32/64], [20/64, 32/64]],
         back:   [[32/64, 20/64], [40/64, 20/64], [40/64, 32/64], [32/64, 32/64]]
       },
-      rightArm: {
-        // Right arm slim (3x12x4)
-        right:  [[44/64, 20/64], [47/64, 20/64], [47/64, 32/64], [44/64, 32/64]],
-        left:   [[40/64, 20/64], [43/64, 20/64], [43/64, 32/64], [40/64, 32/64]],
-        top:    [[43/64, 16/64], [47/64, 16/64], [47/64, 20/64], [43/64, 20/64]],
-        bottom: [[47/64, 16/64], [51/64, 16/64], [51/64, 20/64], [47/64, 20/64]],
-        front:  [[43/64, 20/64], [47/64, 20/64], [47/64, 32/64], [43/64, 32/64]],
-        back:   [[51/64, 20/64], [55/64, 20/64], [55/64, 32/64], [51/64, 32/64]]
-      },
-      leftArm: {
-        // Left arm slim (3x12x4)
-        right:  [[36/64, 52/64], [39/64, 52/64], [39/64, 64/64], [36/64, 64/64]],
-        left:   [[32/64, 52/64], [35/64, 52/64], [35/64, 64/64], [32/64, 64/64]],
-        top:    [[35/64, 48/64], [39/64, 48/64], [39/64, 52/64], [35/64, 52/64]],
-        bottom: [[39/64, 48/64], [43/64, 48/64], [43/64, 52/64], [39/64, 52/64]],
-        front:  [[35/64, 52/64], [39/64, 52/64], [39/64, 64/64], [35/64, 64/64]],
-        back:   [[43/64, 52/64], [47/64, 52/64], [47/64, 64/64], [43/64, 64/64]]
-      },
+      rightArm: rightArmUV,
+      leftArm: leftArmUV,
       rightLeg: {
         // Right leg (4x12x4)
         right:  [[4/64, 20/64], [8/64, 20/64], [8/64, 32/64], [4/64, 32/64]],
@@ -238,7 +268,7 @@ export class Skin3DRenderer {
         back:   [[12/64, 20/64], [16/64, 20/64], [16/64, 32/64], [12/64, 32/64]]
       },
       leftLeg: {
-        // Left leg (4x12x4)
+        // Left leg (4x12x4) - New format (64x64)
         right:  [[20/64, 52/64], [24/64, 52/64], [24/64, 64/64], [20/64, 64/64]],
         left:   [[16/64, 52/64], [20/64, 52/64], [20/64, 64/64], [16/64, 64/64]],
         top:    [[20/64, 48/64], [24/64, 48/64], [24/64, 52/64], [20/64, 52/64]],
@@ -319,6 +349,35 @@ export class Skin3DRenderer {
     }
     
     this.renderer.render(this.scene, this.camera);
+  }
+  
+  setModelType(isSlim) {
+    // Change model type between Slim (3px arms) and Classic (4px arms)
+    if (this.isSlim === isSlim) return; // No change needed
+    
+    this.isSlim = isSlim;
+    
+    // Recreate the player model with new arm widths
+    if (this.playerModel) {
+      this.scene.remove(this.playerModel);
+      // Dispose old model
+      this.playerModel.traverse((object) => {
+        if (object.geometry) object.geometry.dispose();
+        if (object.material) {
+          if (object.material.map) object.material.map.dispose();
+          if (Array.isArray(object.material)) {
+            object.material.forEach(material => material.dispose());
+          } else {
+            object.material.dispose();
+          }
+        }
+      });
+    }
+    
+    this.createPlayerModel();
+    
+    // Reapply texture if one was loaded
+    // The texture will be automatically reapplied when loadSkinTexture is called again
   }
   
   dispose() {

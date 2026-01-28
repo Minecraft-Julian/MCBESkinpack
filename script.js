@@ -324,11 +324,15 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const canvas3DContainer = document.createElement('div');
     
+    // Determine if skin uses slim or classic model
+    const isSlim = !skin.geometry || skin.geometry.includes('Slim');
+    
     // Create a new 3D renderer for zoom mode
     const zoomRenderer = new Skin3DRenderer(canvas3DContainer, {
       width: 400,
       height: 400,
-      autoRotate: false
+      autoRotate: false,
+      isSlim: isSlim
     });
     
     // Enable orbit controls
@@ -410,10 +414,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Create 3D renderer
     let renderer3D = null;
     try {
+      // Determine if skin uses slim or classic model
+      const isSlim = !skin.geometry || skin.geometry.includes('Slim');
+      
       renderer3D = new Skin3DRenderer(previewWrap, {
         width: 80,
         height: 80,
-        autoRotate: true
+        autoRotate: true,
+        isSlim: isSlim
       });
       
       // Load combined skin texture if available
@@ -496,10 +504,62 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const small = document.createElement('small');
     small.className = 'muted';
-    small.textContent = 'Typ: free • Geometrie: humanoid.customSlim';
+    
+    // Add model type selector (Slim/Classic toggle)
+    const modelTypeContainer = document.createElement('div');
+    modelTypeContainer.style.marginTop = '5px';
+    
+    const modelTypeLabel = document.createElement('label');
+    modelTypeLabel.style.fontSize = '12px';
+    modelTypeLabel.textContent = 'Modell: ';
+    
+    const modelTypeSelect = document.createElement('select');
+    modelTypeSelect.style.fontSize = '12px';
+    modelTypeSelect.style.padding = '2px 4px';
+    
+    const slimOption = document.createElement('option');
+    slimOption.value = 'slim';
+    slimOption.textContent = 'Slim (3px Arme)';
+    
+    const classicOption = document.createElement('option');
+    classicOption.value = 'classic';
+    classicOption.textContent = 'Classic (4px Arme)';
+    
+    modelTypeSelect.appendChild(slimOption);
+    modelTypeSelect.appendChild(classicOption);
+    
+    // Set initial value based on skin geometry
+    const isSlim = !skin.geometry || skin.geometry.includes('Slim');
+    modelTypeSelect.value = isSlim ? 'slim' : 'classic';
+    
+    // Update skin and renderer when model type changes
+    modelTypeSelect.addEventListener('change', (e) => {
+      const newIsSlim = e.target.value === 'slim';
+      skin.geometry = newIsSlim ? 'geometry.humanoid.customSlim' : 'geometry.humanoid.custom';
+      
+      // Update 3D renderer model type
+      if (skin.renderer3D) {
+        skin.renderer3D.setModelType(newIsSlim);
+        // Reload texture with new model
+        loadCombinedSkinTexture(skin.renderer3D, skin).catch(err => {
+          console.warn('[mcbe] Failed to reload texture after model change:', err);
+        });
+      }
+      
+      // Update display text
+      small.textContent = `Typ: ${skin.type || 'free'} • Geometrie: ${skin.geometry}`;
+      
+      saveFormToLocalStorage();
+    });
+    
+    modelTypeLabel.appendChild(modelTypeSelect);
+    modelTypeContainer.appendChild(modelTypeLabel);
+    
+    small.textContent = `Typ: ${skin.type || 'free'} • Geometrie: ${skin.geometry || 'geometry.humanoid.customSlim'}`;
 
     middle.appendChild(nameInput);
     middle.appendChild(fileInput);
+    middle.appendChild(modelTypeContainer);
     middle.appendChild(small);
 
     // right
