@@ -75,6 +75,7 @@ export class Skin3DRenderer {
   
   createPlayerModel() {
     // Create a simplified Minecraft player model (humanoid.customSlim compatible)
+    console.log('[Skin3DRenderer] Creating player model...');
     this.playerModel = new THREE.Group();
     
     // Head (8x8x8)
@@ -122,18 +123,27 @@ export class Skin3DRenderer {
     this.playerModel.add(leftLeg);
     
     this.scene.add(this.playerModel);
+    console.log('[Skin3DRenderer] Player model created with parts:', ['head', 'body', 'rightArm', 'leftArm', 'rightLeg', 'leftLeg']);
   }
   
   loadSkinTexture(imageSource) {
     return new Promise((resolve, reject) => {
+      console.log('[Skin3DRenderer] Loading skin texture...', {
+        sourceType: imageSource instanceof File ? 'File' : imageSource instanceof Blob ? 'Blob' : typeof imageSource,
+        size: imageSource?.size
+      });
+      
       const loader = new THREE.TextureLoader();
       
       let textureUrl;
       if (typeof imageSource === 'string') {
         textureUrl = imageSource;
+        console.log('[Skin3DRenderer] Using string URL:', textureUrl);
       } else if (imageSource instanceof File || imageSource instanceof Blob) {
         textureUrl = URL.createObjectURL(imageSource);
+        console.log('[Skin3DRenderer] Created object URL:', textureUrl);
       } else {
+        console.error('[Skin3DRenderer] Invalid image source type:', typeof imageSource);
         reject(new Error('Invalid image source'));
         return;
       }
@@ -141,6 +151,10 @@ export class Skin3DRenderer {
       loader.load(
         textureUrl,
         (texture) => {
+          console.log('[Skin3DRenderer] Texture loaded successfully', {
+            width: texture.image?.width,
+            height: texture.image?.height
+          });
           texture.magFilter = THREE.NearestFilter;
           texture.minFilter = THREE.NearestFilter;
           this.applySkinTexture(texture);
@@ -148,6 +162,7 @@ export class Skin3DRenderer {
         },
         undefined,
         (error) => {
+          console.error('[Skin3DRenderer] Failed to load texture:', error);
           reject(error);
         }
       );
@@ -157,6 +172,8 @@ export class Skin3DRenderer {
   applySkinTexture(texture) {
     // Apply UV mapping for Minecraft skin format (64x64)
     // This is a simplified version - a full implementation would map each part correctly
+    
+    console.log('[Skin3DRenderer] Applying skin texture to player model...');
     
     const parts = ['head', 'body', 'rightArm', 'leftArm', 'rightLeg', 'leftLeg'];
     
@@ -171,8 +188,13 @@ export class Skin3DRenderer {
         
         // Apply basic UV mapping
         this.applyUVMapping(part, partName);
+        console.log(`[Skin3DRenderer] Applied texture to ${partName} at position (${part.position.x}, ${part.position.y}, ${part.position.z})`);
+      } else {
+        console.warn(`[Skin3DRenderer] Part "${partName}" not found in player model`);
       }
     });
+    
+    console.log('[Skin3DRenderer] Texture application complete');
   }
   
   applyUVMapping(mesh, partName) {
