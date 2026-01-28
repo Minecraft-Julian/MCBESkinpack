@@ -163,6 +163,12 @@ export class Skin3DRenderer {
     texturedParts.forEach(partName => {
       const part = this.playerModel.getObjectByName(partName);
       if (part) {
+        // Dispose old material and texture to prevent memory leak
+        if (part.material) {
+          if (part.material.map) part.material.map.dispose();
+          part.material.dispose();
+        }
+        
         part.material = new THREE.MeshLambertMaterial({
           map: texture.clone(),
           transparent: true
@@ -179,7 +185,7 @@ export class Skin3DRenderer {
   }
   
   applyUVMapping(mesh, partName) {
-    // Apply proper UV mapping for Minecraft skin format (64x64)
+    // Apply proper UV mapping for Minecraft skin format (64x32, 64x64, or 128x128)
     const geometry = mesh.geometry;
     if (!geometry.attributes.uv) return;
     
