@@ -485,7 +485,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
           
-          setStatus(`Skin "${skin.name}" erfolgreich hochgeladen (64x64px).`);
+          setStatus(`Skin "${skin.name}" erfolgreich hochgeladen.`);
           await saveFormToLocalStorage();
         } catch (error) {
           setStatus(`Fehler: ${error.message}`);

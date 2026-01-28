@@ -93,29 +93,29 @@ export class Skin3DRenderer {
     body.name = 'body';
     this.playerModel.add(body);
     
-    // Right Arm (3x12x4 for slim model)
+    // Right Arm (3x12x4 for slim model) - using visible solid color
     const armGeometry = new THREE.BoxGeometry(3, 12, 4);
-    const armMaterial = new THREE.MeshLambertMaterial({ color: 0x777777 });
+    const armMaterial = new THREE.MeshLambertMaterial({ color: 0x99cc66 });
     const rightArm = new THREE.Mesh(armGeometry, armMaterial);
     rightArm.position.set(-5.5, 6, 0);
     rightArm.name = 'rightArm';
     this.playerModel.add(rightArm);
     
-    // Left Arm (3x12x4 for slim model)
+    // Left Arm (3x12x4 for slim model) - using visible solid color
     const leftArm = new THREE.Mesh(armGeometry, armMaterial.clone());
     leftArm.position.set(5.5, 6, 0);
     leftArm.name = 'leftArm';
     this.playerModel.add(leftArm);
     
-    // Right Leg (4x12x4)
+    // Right Leg (4x12x4) - using visible solid color
     const legGeometry = new THREE.BoxGeometry(4, 12, 4);
-    const legMaterial = new THREE.MeshLambertMaterial({ color: 0x555555 });
+    const legMaterial = new THREE.MeshLambertMaterial({ color: 0x99cc66 });
     const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
     rightLeg.position.set(-2, -6, 0);
     rightLeg.name = 'rightLeg';
     this.playerModel.add(rightLeg);
     
-    // Left Leg (4x12x4)
+    // Left Leg (4x12x4) - using visible solid color
     const leftLeg = new THREE.Mesh(legGeometry, legMaterial.clone());
     leftLeg.position.set(2, -6, 0);
     leftLeg.name = 'leftLeg';
@@ -155,12 +155,12 @@ export class Skin3DRenderer {
   }
   
   applySkinTexture(texture) {
-    // Apply UV mapping for Minecraft skin format (64x64)
-    // This is a simplified version - a full implementation would map each part correctly
+    // Apply UV mapping for Minecraft skin format (64x64, 64x32, or 128x128)
+    // Apply texture only to head and body, keep arms and legs with solid colors
     
-    const parts = ['head', 'body', 'rightArm', 'leftArm', 'rightLeg', 'leftLeg'];
+    const texturedParts = ['head', 'body']; // Only head and body get texture
     
-    parts.forEach(partName => {
+    texturedParts.forEach(partName => {
       const part = this.playerModel.getObjectByName(partName);
       if (part) {
         part.material = new THREE.MeshLambertMaterial({
@@ -173,6 +173,9 @@ export class Skin3DRenderer {
         this.applyUVMapping(part, partName);
       }
     });
+    
+    // Arms and legs keep their solid color materials (0x99cc66)
+    // No texture applied to: rightArm, leftArm, rightLeg, leftLeg
   }
   
   applyUVMapping(mesh, partName) {
@@ -362,8 +365,19 @@ export function validateSkinFile(file) {
     img.onload = () => {
       URL.revokeObjectURL(url);
       
-      if (img.width !== 64 || img.height !== 64) {
-        reject(new Error(`Ungültige Abmessungen: ${img.width}x${img.height}px. Erforderlich: 64x64px.`));
+      // Accept 64x32, 64x64, or 128x128 skin sizes
+      const validSizes = [
+        { width: 64, height: 32 },
+        { width: 64, height: 64 },
+        { width: 128, height: 128 }
+      ];
+      
+      const isValidSize = validSizes.some(size => 
+        img.width === size.width && img.height === size.height
+      );
+      
+      if (!isValidSize) {
+        reject(new Error(`Ungültige Abmessungen: ${img.width}x${img.height}px. Erforderlich: 64x32, 64x64 oder 128x128px.`));
         return;
       }
       
