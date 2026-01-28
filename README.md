@@ -22,9 +22,10 @@ Ein Browser-basiertes Tool zum Erstellen von Minecraft Bedrock Edition Skinpacks
   
 - **Kommentar-System**:
   - Kommentare hinterlassen und lesen
+  - Name ist optional (wird automatisch "Anonym" wenn leer)
   - Antworten auf Kommentare
   - Persistente Speicherung in localStorage
-  - E-Mail-Benachrichtigungen (optional, über EmailJS)
+  - E-Mail-Benachrichtigungen an ytjulian@icloud.com (optional, über EmailJS)
 
 ## Verwendung
 
@@ -47,21 +48,22 @@ Um E-Mail-Benachrichtigungen für neue Kommentare zu erhalten:
 3. Erstelle ein E-Mail-Template mit folgenden Variablen:
    - `{{from_name}}` - Name des Kommentators
    - `{{message}}` - Kommentartext
-   - `{{to_name}}` - Empfängername (Minecraft-Julian)
+   - `{{to_email}}` - Empfänger-E-Mail (wird auf ytjulian@icloud.com gesetzt)
+   - `{{to_name}}` - Empfängername (Julian)
 4. Notiere dir:
    - Public Key (aus dem Dashboard)
    - Service ID
    - Template ID
 5. Öffne `index.html` und ersetze die Platzhalter:
    ```javascript
-   emailjs.init('YOUR_PUBLIC_KEY');  // Zeile 13
+   emailjs.init('YOUR_PUBLIC_KEY');  // Zeile 16
    ```
 6. Öffne `script.js` und ersetze in der Funktion `sendEmailNotification`:
    ```javascript
    await emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', templateParams);
    ```
 
-**Hinweis**: Ohne EmailJS-Konfiguration funktioniert das Kommentar-System trotzdem vollständig - nur die E-Mail-Benachrichtigungen werden übersprungen.
+**Hinweis**: Ohne EmailJS-Konfiguration funktioniert das Kommentar-System trotzdem vollständig - nur die E-Mail-Benachrichtigungen werden übersprungen. Benachrichtigungen werden an ytjulian@icloud.com gesendet.
 
 ## Technische Details
 

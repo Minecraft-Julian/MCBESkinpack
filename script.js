@@ -272,6 +272,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Create 3D renderer
     let renderer3D = null;
     try {
+      console.log('[mcbe] Creating 3D renderer for skin:', skin.name, 'ID:', skin.id);
       renderer3D = new Skin3DRenderer(previewWrap, {
         width: 80,
         height: 80,
@@ -280,14 +281,18 @@ document.addEventListener('DOMContentLoaded', () => {
       
       // Load skin texture if available
       if (skin.uploadedFile) {
+        console.log('[mcbe] Loading uploaded file for skin:', skin.name);
         renderer3D.loadSkinTexture(skin.uploadedFile).catch(e => {
           console.warn('[mcbe] Failed to load skin texture:', e);
         });
       } else if (skin.buffer) {
+        console.log('[mcbe] Loading placeholder texture for skin:', skin.name);
         const blob = new Blob([skin.buffer], { type: 'image/png' });
         renderer3D.loadSkinTexture(blob).catch(e => {
           console.warn('[mcbe] Failed to load placeholder texture:', e);
         });
+      } else {
+        console.warn('[mcbe] No texture source available for skin:', skin.name);
       }
       
       // Store renderer reference
@@ -785,7 +790,7 @@ document.addEventListener('DOMContentLoaded', () => {
     container.innerHTML = `
       <div class="reply-form">
         <h4 style="margin: 0 0 8px 0; font-size: 14px; color: var(--muted);">Antwort schreiben</h4>
-        <input type="text" class="reply-name" placeholder="Dein Name" required />
+        <input type="text" class="reply-name" placeholder="Dein Name (optional)" />
         <textarea class="reply-text" rows="3" placeholder="Deine Antwort..." required></textarea>
         <div style="display: flex; gap: 8px;">
           <button type="button" class="submit-reply" style="flex: 1;">Absenden</button>
@@ -798,12 +803,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const nameInput = container.querySelector('.reply-name');
       const textInput = container.querySelector('.reply-text');
       
-      if (!nameInput.value.trim() || !textInput.value.trim()) {
-        alert('Bitte Name und Text eingeben.');
+      if (!textInput.value.trim()) {
+        alert('Bitte einen Text eingeben.');
         return;
       }
       
-      addReply(commentId, nameInput.value.trim(), textInput.value.trim());
+      addReply(commentId, nameInput.value.trim() || 'Anonym', textInput.value.trim());
       container.style.display = 'none';
     });
     
@@ -844,17 +849,18 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       // Template parameters for EmailJS
       // You need to create a template in EmailJS dashboard
-      // Template should have variables: from_name, message, reply_to
+      // Template should have variables: from_name, message, to_email
       const templateParams = {
         from_name: commentData.name,
         message: commentData.text,
-        reply_to: 'noreply@example.com', // Change this to actual email
-        to_name: 'Minecraft-Julian'
+        to_email: 'ytjulian@icloud.com', // Notification email address
+        to_name: 'Julian'
       };
       
       // Replace 'YOUR_SERVICE_ID' and 'YOUR_TEMPLATE_ID' with actual values from EmailJS
+      // See README.md for setup instructions
       await emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', templateParams);
-      console.log('[mcbe] Email notification sent successfully');
+      console.log('[mcbe] Email notification sent successfully to ytjulian@icloud.com');
     } catch (error) {
       console.warn('[mcbe] Failed to send email notification:', error);
       // Don't show error to user - notification failure shouldn't block comment posting
@@ -892,11 +898,11 @@ document.addEventListener('DOMContentLoaded', () => {
       
       if (!nameInput || !textInput) return;
       
-      const name = nameInput.value.trim();
+      const name = nameInput.value.trim() || 'Anonym'; // Use "Anonym" if name is empty
       const text = textInput.value.trim();
       
-      if (!name || !text) {
-        alert('Bitte Name und Kommentar eingeben.');
+      if (!text) {
+        alert('Bitte einen Kommentar eingeben.');
         return;
       }
       
