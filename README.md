@@ -38,31 +38,6 @@ Ein Browser-basiertes Tool zum Erstellen von Minecraft Bedrock Edition Skinpacks
 4. Klicke auf "Skinpack erzeugen & herunterladen" um das Pack zu erstellen
 5. Das heruntergeladene `.mcpack` kann direkt in Minecraft Bedrock Edition importiert werden
 
-## E-Mail-Benachrichtigungen einrichten (Optional)
-
-Um E-Mail-Benachrichtigungen für neue Kommentare zu erhalten:
-
-1. Erstelle ein kostenloses Konto bei [EmailJS](https://www.emailjs.com/)
-2. Erstelle einen E-Mail-Service (z.B. Gmail, Outlook)
-3. Erstelle ein E-Mail-Template mit folgenden Variablen:
-   - `{{from_name}}` - Name des Kommentators
-   - `{{message}}` - Kommentartext
-   - `{{to_name}}` - Empfängername (Minecraft-Julian)
-4. Notiere dir:
-   - Public Key (aus dem Dashboard)
-   - Service ID
-   - Template ID
-5. Öffne `index.html` und ersetze die Platzhalter:
-   ```javascript
-   emailjs.init('YOUR_PUBLIC_KEY');  // Zeile 13
-   ```
-6. Öffne `script.js` und ersetze in der Funktion `sendEmailNotification`:
-   ```javascript
-   await emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', templateParams);
-   ```
-
-**Hinweis**: Ohne EmailJS-Konfiguration funktioniert das Kommentar-System trotzdem vollständig - nur die E-Mail-Benachrichtigungen werden übersprungen.
-
 ## Technische Details
 
 ### Abhängigkeiten
