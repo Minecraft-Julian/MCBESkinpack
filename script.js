@@ -5,6 +5,8 @@
 //
 // Benötigt: JSZip (global JSZip)
 
+import { Skin3DRenderer, validateSkinFile } from './skin3d.js';
+
 // ----------------- Utilities -----------------
 function safeFileName(name) {
   return (name || 'skinpack')
@@ -125,23 +127,142 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('[mcbe]', t);
   }
 
+  // Create zoom modal for 3D skin preview
+  function createZoomModal(skin, originalRenderer) {
+    const modal = document.createElement('div');
+    modal.className = 'skin-zoom-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-label', '3D Skin Vorschau');
+    modal.setAttribute('aria-modal', 'true');
+    
+    const content = document.createElement('div');
+    content.className = 'skin-zoom-content';
+    
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'skin-zoom-close';
+    closeBtn.innerHTML = '×';
+    closeBtn.setAttribute('aria-label', 'Schließen');
+    
+    const canvas3DContainer = document.createElement('div');
+    
+    // Create a new 3D renderer for zoom mode
+    const zoomRenderer = new Skin3DRenderer(canvas3DContainer, {
+      width: 400,
+      height: 400,
+      autoRotate: false
+    });
+    
+    // Enable orbit controls
+    zoomRenderer.controls.enabled = true;
+    
+    // Load the same texture
+    if (skin.uploadedFile) {
+      zoomRenderer.loadSkinTexture(skin.uploadedFile).catch(e => {
+        console.warn('[mcbe] Failed to load skin texture in zoom:', e);
+      });
+    } else if (skin.buffer) {
+      const blob = new Blob([skin.buffer], { type: 'image/png' });
+      zoomRenderer.loadSkinTexture(blob).catch(e => {
+        console.warn('[mcbe] Failed to load texture in zoom:', e);
+      });
+    }
+    
+    const info = document.createElement('div');
+    info.className = 'skin-zoom-info';
+    info.textContent = 'Ziehen zum Drehen • Scrollrad zum Zoomen';
+    
+    const closeModal = () => {
+      zoomRenderer.dispose();
+      document.body.removeChild(modal);
+    };
+    
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        closeModal();
+      }
+    });
+    
+    // Keyboard support
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+        document.removeEventListener('keydown', handleKeyDown);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    
+    content.appendChild(closeBtn);
+    content.appendChild(canvas3DContainer);
+    content.appendChild(info);
+    modal.appendChild(content);
+    
+    return modal;
+  }
+
   // create DOM entry for skin and return fileInput so caller can open it
   function createSkinEntryDOM(skin) {
     const entry = document.createElement('div');
     entry.className = 'skin-entry';
     entry.dataset.id = skin.id;
 
-    // Preview
+    // Preview with 3D renderer
     const previewWrap = document.createElement('div');
     previewWrap.className = 'preview';
-    const img = document.createElement('img');
-    img.alt = skin.name || 'preview';
-    if (skin.uploadedFile) {
-      img.src = URL.createObjectURL(skin.uploadedFile);
-    } else if (skin.buffer) {
-      img.src = bufferToObjectUrl(skin.buffer);
+    previewWrap.setAttribute('role', 'button');
+    previewWrap.setAttribute('tabindex', '0');
+    previewWrap.setAttribute('aria-label', 'Klicken für 3D-Vorschau');
+    
+    // Create 3D renderer
+    let renderer3D = null;
+    try {
+      renderer3D = new Skin3DRenderer(previewWrap, {
+        width: 80,
+        height: 80,
+        autoRotate: true
+      });
+      
+      // Load skin texture if available
+      if (skin.uploadedFile) {
+        renderer3D.loadSkinTexture(skin.uploadedFile).catch(e => {
+          console.warn('[mcbe] Failed to load skin texture:', e);
+        });
+      } else if (skin.buffer) {
+        const blob = new Blob([skin.buffer], { type: 'image/png' });
+        renderer3D.loadSkinTexture(blob).catch(e => {
+          console.warn('[mcbe] Failed to load placeholder texture:', e);
+        });
+      }
+      
+      // Store renderer reference
+      skin.renderer3D = renderer3D;
+      
+      // Click handler for zoom mode
+      const openZoomModal = () => {
+        const modal = createZoomModal(skin, renderer3D);
+        document.body.appendChild(modal);
+      };
+      
+      previewWrap.addEventListener('click', openZoomModal);
+      previewWrap.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openZoomModal();
+        }
+      });
+      
+    } catch (e) {
+      console.error('[mcbe] Failed to create 3D renderer:', e);
+      // Fallback to 2D image
+      const img = document.createElement('img');
+      img.alt = skin.name || 'preview';
+      if (skin.uploadedFile) {
+        img.src = URL.createObjectURL(skin.uploadedFile);
+      } else if (skin.buffer) {
+        img.src = bufferToObjectUrl(skin.buffer);
+      }
+      previewWrap.appendChild(img);
     }
-    previewWrap.appendChild(img);
 
     // middle
     const middle = document.createElement('div');
@@ -161,12 +282,28 @@ document.addEventListener('DOMContentLoaded', () => {
     fileInput.style.cursor = 'pointer';
     fileInput.addEventListener('change', async () => {
       if (fileInput.files && fileInput.files[0]) {
-        skin.uploadedFile = fileInput.files[0];
-        // update preview
-        if (img && img.src) {
-          try { URL.revokeObjectURL(img.src); } catch(e) {}
+        const file = fileInput.files[0];
+        
+        // Validate file
+        try {
+          await validateSkinFile(file);
+          
+          skin.uploadedFile = file;
+          
+          // Update 3D preview
+          if (skin.renderer3D) {
+            try {
+              await skin.renderer3D.loadSkinTexture(file);
+            } catch (e) {
+              console.warn('[mcbe] Failed to update 3D preview:', e);
+            }
+          }
+          
+          setStatus(`Skin "${skin.name}" erfolgreich hochgeladen (64x64px).`);
+        } catch (error) {
+          setStatus(`Fehler: ${error.message}`);
+          fileInput.value = ''; // Reset file input
         }
-        img.src = URL.createObjectURL(skin.uploadedFile);
       }
     });
 
@@ -191,6 +328,10 @@ document.addEventListener('DOMContentLoaded', () => {
     removeBtn.className = 'ghost';
     removeBtn.textContent = 'Entfernen';
     removeBtn.addEventListener('click', () => {
+      // Cleanup 3D renderer
+      if (skin.renderer3D) {
+        skin.renderer3D.dispose();
+      }
       skinsData = skinsData.filter(s => s.id !== skin.id);
       if (entry.parentNode) entry.parentNode.removeChild(entry);
     });
@@ -205,7 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
     skinsContainer.appendChild(entry);
 
     // Return useful references
-    return { entry, fileInput, img, nameInput };
+    return { entry, fileInput, nameInput };
   }
 
   // Add a new skin entry (optionally open the file dialog immediately)
@@ -424,19 +565,20 @@ document.addEventListener('DOMContentLoaded', () => {
   regenBtn.addEventListener('click', async () => {
     setStatus('Erzeuge neue Platzhalter für Skins...');
     for (const s of skinsData) {
-      if (!s.uploadedFile) s.buffer = await createPlaceholderSkinPNG(64,64,true);
-    }
-    // refresh previews
-    const entries = document.querySelectorAll('.skin-entry');
-    entries.forEach(entry => {
-      const id = entry.dataset.id;
-      const s = skinsData.find(x => x.id === id);
-      const img = entry.querySelector('.preview img');
-      if (s && img && !s.uploadedFile && s.buffer) {
-        try { URL.revokeObjectURL(img.src); } catch(e) {}
-        img.src = bufferToObjectUrl(s.buffer);
+      if (!s.uploadedFile) {
+        s.buffer = await createPlaceholderSkinPNG(64,64,true);
+        
+        // Update 3D preview
+        if (s.renderer3D) {
+          try {
+            const blob = new Blob([s.buffer], { type: 'image/png' });
+            await s.renderer3D.loadSkinTexture(blob);
+          } catch (e) {
+            console.warn('[mcbe] Failed to update 3D preview:', e);
+          }
+        }
       }
-    });
+    }
     setStatus('Neue Platzhalter wurden erzeugt.');
   });
 
