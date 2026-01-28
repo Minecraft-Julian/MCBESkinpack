@@ -29,21 +29,26 @@ export class Skin3DRenderer {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x0f1724);
     
-    // Camera
+    console.log('[mcbe 3D] Initializing 3D renderer');
+    console.log('[mcbe 3D] WebGL available:', !!window.WebGLRenderingContext);
+    
+    // Camera - adjusted to center on new model position
     this.camera = new THREE.PerspectiveCamera(
       45,
       this.width / this.height,
       0.1,
       1000
     );
-    this.camera.position.set(0, 8, 20);
-    this.camera.lookAt(0, 8, 0);
+    this.camera.position.set(0, 2, 20);
+    this.camera.lookAt(0, 2, 0);
+    console.log('[mcbe 3D] Camera positioned at', this.camera.position);
     
     // Renderer
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(this.width, this.height);
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.container.appendChild(this.renderer.domElement);
+    console.log('[mcbe 3D] WebGL Renderer created, size:', this.width, 'x', this.height);
     
     // Lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
@@ -56,13 +61,14 @@ export class Skin3DRenderer {
     const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.3);
     directionalLight2.position.set(-5, 5, -5);
     this.scene.add(directionalLight2);
+    console.log('[mcbe 3D] Lights added to scene');
     
     // OrbitControls (disabled by default, enabled in zoom mode)
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableZoom = true;  // Enable zoom
     this.controls.enablePan = false;
     this.controls.enabled = false;  // Start disabled for small preview
-    this.controls.target.set(0, 8, 0);
+    this.controls.target.set(0, 2, 0);
     this.controls.minDistance = 10;
     this.controls.maxDistance = 50;
     
@@ -77,55 +83,65 @@ export class Skin3DRenderer {
     // Create a simplified Minecraft player model (humanoid.customSlim compatible)
     this.playerModel = new THREE.Group();
     
-    // Head (8x8x8)
+    console.log('[mcbe 3D] Creating player model with proper positioning');
+    
+    // Head (8x8x8) - Center at y=1.35 * 8 = 10.8 (scaled to Minecraft units)
     const headGeometry = new THREE.BoxGeometry(8, 8, 8);
     const headMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
     const head = new THREE.Mesh(headGeometry, headMaterial);
-    head.position.y = 12;
+    head.position.y = 10.8; // Adjusted positioning
     head.name = 'head';
     this.playerModel.add(head);
+    console.log('[mcbe 3D] Head positioned at y =', head.position.y);
     
-    // Body (8x12x4)
+    // Body (8x12x4) - positioned below head
     const bodyGeometry = new THREE.BoxGeometry(8, 12, 4);
     const bodyMaterial = new THREE.MeshLambertMaterial({ color: 0x666666 });
     const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-    body.position.y = 6;
+    body.position.y = 4.8; // Head bottom (10.8 - 4) = 6.8, body center at 6.8 - 2 = 4.8
     body.name = 'body';
     this.playerModel.add(body);
+    console.log('[mcbe 3D] Body positioned at y =', body.position.y);
     
-    // Right Arm (3x12x4 for slim model)
+    // Right Arm (3x12x4 for slim model) - lowered to shoulder level
     const armGeometry = new THREE.BoxGeometry(3, 12, 4);
     const armMaterial = new THREE.MeshLambertMaterial({ color: 0x777777 });
     const rightArm = new THREE.Mesh(armGeometry, armMaterial);
-    rightArm.position.set(-5.5, 6, 0);
+    rightArm.position.set(-5.5, 4.8, 0); // At body level
     rightArm.name = 'rightArm';
     this.playerModel.add(rightArm);
+    console.log('[mcbe 3D] Right arm positioned at x =', rightArm.position.x, 'y =', rightArm.position.y);
     
-    // Left Arm (3x12x4 for slim model)
+    // Left Arm (3x12x4 for slim model) - lowered to shoulder level
     const leftArm = new THREE.Mesh(armGeometry, armMaterial.clone());
-    leftArm.position.set(5.5, 6, 0);
+    leftArm.position.set(5.5, 4.8, 0); // At body level
     leftArm.name = 'leftArm';
     this.playerModel.add(leftArm);
+    console.log('[mcbe 3D] Left arm positioned at x =', leftArm.position.x, 'y =', leftArm.position.y);
     
-    // Right Leg (4x12x4)
+    // Right Leg (4x12x4) - below body
     const legGeometry = new THREE.BoxGeometry(4, 12, 4);
     const legMaterial = new THREE.MeshLambertMaterial({ color: 0x555555 });
     const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
-    rightLeg.position.set(-2, -6, 0);
+    rightLeg.position.set(-2, -7.2, 0); // Body bottom (4.8 - 6) = -1.2, leg center at -1.2 - 6 = -7.2
     rightLeg.name = 'rightLeg';
     this.playerModel.add(rightLeg);
+    console.log('[mcbe 3D] Right leg positioned at x =', rightLeg.position.x, 'y =', rightLeg.position.y);
     
     // Left Leg (4x12x4)
     const leftLeg = new THREE.Mesh(legGeometry, legMaterial.clone());
-    leftLeg.position.set(2, -6, 0);
+    leftLeg.position.set(2, -7.2, 0);
     leftLeg.name = 'leftLeg';
     this.playerModel.add(leftLeg);
+    console.log('[mcbe 3D] Left leg positioned at x =', leftLeg.position.x, 'y =', leftLeg.position.y);
     
     this.scene.add(this.playerModel);
+    console.log('[mcbe 3D] Player model added to scene');
   }
   
   loadSkinTexture(imageSource) {
     return new Promise((resolve, reject) => {
+      console.log('[mcbe 3D] Loading skin texture from source:', typeof imageSource);
       const loader = new THREE.TextureLoader();
       
       let textureUrl;
@@ -134,13 +150,17 @@ export class Skin3DRenderer {
       } else if (imageSource instanceof File || imageSource instanceof Blob) {
         textureUrl = URL.createObjectURL(imageSource);
       } else {
+        console.error('[mcbe 3D] Invalid image source type');
         reject(new Error('Invalid image source'));
         return;
       }
       
+      console.log('[mcbe 3D] Loading texture from URL');
+      
       loader.load(
         textureUrl,
         (texture) => {
+          console.log('[mcbe 3D] Texture loaded successfully, size:', texture.image.width, 'x', texture.image.height);
           texture.magFilter = THREE.NearestFilter;
           texture.minFilter = THREE.NearestFilter;
           this.applySkinTexture(texture);
@@ -148,6 +168,7 @@ export class Skin3DRenderer {
         },
         undefined,
         (error) => {
+          console.error('[mcbe 3D] Failed to load texture:', error);
           reject(error);
         }
       );
@@ -158,11 +179,13 @@ export class Skin3DRenderer {
     // Apply UV mapping for Minecraft skin format (64x64)
     // This is a simplified version - a full implementation would map each part correctly
     
+    console.log('[mcbe 3D] Applying skin texture to model parts');
     const parts = ['head', 'body', 'rightArm', 'leftArm', 'rightLeg', 'leftLeg'];
     
     parts.forEach(partName => {
       const part = this.playerModel.getObjectByName(partName);
       if (part) {
+        console.log('[mcbe 3D] Applying texture to part:', partName);
         part.material = new THREE.MeshLambertMaterial({
           map: texture.clone(),
           transparent: true
@@ -171,8 +194,11 @@ export class Skin3DRenderer {
         
         // Apply basic UV mapping
         this.applyUVMapping(part, partName);
+      } else {
+        console.warn('[mcbe 3D] Part not found:', partName);
       }
     });
+    console.log('[mcbe 3D] Texture application completed');
   }
   
   applyUVMapping(mesh, partName) {
@@ -378,3 +404,43 @@ export function validateSkinFile(file) {
     img.src = url;
   });
 }
+
+// Console command for testing WebGL rendering
+window.testWebGL = function() {
+  console.log('=== WebGL Rendering Test ===');
+  console.log('WebGL Available:', !!window.WebGLRenderingContext);
+  
+  try {
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    
+    if (gl) {
+      console.log('WebGL Context: ✓ Successfully created');
+      console.log('WebGL Vendor:', gl.getParameter(gl.VENDOR));
+      console.log('WebGL Renderer:', gl.getParameter(gl.RENDERER));
+      console.log('WebGL Version:', gl.getParameter(gl.VERSION));
+      console.log('GLSL Version:', gl.getParameter(gl.SHADING_LANGUAGE_VERSION));
+      console.log('Max Texture Size:', gl.getParameter(gl.MAX_TEXTURE_SIZE));
+      console.log('Max Viewport Dims:', gl.getParameter(gl.MAX_VIEWPORT_DIMS));
+      
+      // Test if Three.js renderers are working
+      const renderers = document.querySelectorAll('canvas');
+      console.log('Total canvas elements found:', renderers.length);
+      
+      renderers.forEach((canvas, index) => {
+        console.log(`Canvas ${index}:`, canvas.width, 'x', canvas.height);
+      });
+      
+      return true;
+    } else {
+      console.error('WebGL Context: ✗ Failed to create context');
+      return false;
+    }
+  } catch (e) {
+    console.error('WebGL Test Error:', e);
+    return false;
+  }
+};
+
+console.log('[mcbe 3D] Console command available: testWebGL()');
+
