@@ -11,7 +11,7 @@ Ein Browser-basiertes Tool zum Erstellen von Minecraft Bedrock Edition Skinpacks
   
 - **Skinpack-Verwaltung**:
   - Mehrere Skins pro Pack möglich
-  - Upload eigener PNG-Dateien (64x64 Pixel)
+  - Upload eigener PNG-Dateien (64x32, 64x64 oder 128x128 Pixel)
   - Automatische Platzhalter-Generierung
   - Validierung der Skin-Dateien
   
@@ -33,7 +33,7 @@ Ein Browser-basiertes Tool zum Erstellen von Minecraft Bedrock Edition Skinpacks
 3. Passe die Felder nach Bedarf an:
    - Skinpack-Name und Beschreibung
    - Skins hinzufügen/entfernen
-   - Eigene PNG-Dateien hochladen (64x64 Pixel)
+   - Eigene PNG-Dateien hochladen (64x32, 64x64 oder 128x128 Pixel)
    - Sprache für die Textdatei auswählen
 4. Klicke auf "Skinpack erzeugen & herunterladen" um das Pack zu erstellen
 5. Das heruntergeladene `.mcpack` kann direkt in Minecraft Bedrock Edition importiert werden
@@ -93,7 +93,7 @@ Der Button "Platzhalter neu erzeugen" generiert neue Platzhalter-Skins nur für 
 Hochgeladene Skins werden validiert:
 - Nur PNG-Dateien erlaubt
 - Maximale Dateigröße: 1 MB
-- Erforderliche Abmessungen: 64x64 Pixel
+- Erforderliche Abmessungen: 64x32, 64x64 oder 128x128 Pixel
 
 ### 3D-Vorschau
 Die 3D-Vorschau verwendet ein vereinfachtes Minecraft-Player-Modell (humanoid.customSlim) mit korrektem UV-Mapping für die Standardtextur-Layout.
