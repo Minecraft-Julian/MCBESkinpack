@@ -37,6 +37,81 @@ function bufferToObjectUrl(buffer) {
   return URL.createObjectURL(blob);
 }
 
+// Convert base64 data URL to ArrayBuffer
+async function dataURLToArrayBuffer(dataURL) {
+  const response = await fetch(dataURL);
+  return await response.arrayBuffer();
+}
+
+// Kombiniere Basis-Skin und Overlay zu finalem Skin (Base64)
+async function combineSkinLayers(baseSkinBuffer, overlayBuffer = null) {
+  return new Promise((resolve, reject) => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+
+      // Load base skin
+      const baseImg = new Image();
+      const baseUrl = bufferToObjectUrl(baseSkinBuffer);
+      
+      baseImg.onload = () => {
+        // Draw base skin
+        ctx.drawImage(baseImg, 0, 0, 64, 64);
+        URL.revokeObjectURL(baseUrl);
+        
+        // If overlay exists, draw it on top
+        if (overlayBuffer) {
+          const overlayImg = new Image();
+          const overlayUrl = bufferToObjectUrl(overlayBuffer);
+          
+          overlayImg.onload = () => {
+            ctx.drawImage(overlayImg, 0, 0, 64, 64);
+            URL.revokeObjectURL(overlayUrl);
+            
+            // Convert to ArrayBuffer for consistency
+            canvas.toBlob(async (blob) => {
+              if (!blob) {
+                reject(new Error('Failed to create blob'));
+                return;
+              }
+              const arrayBuffer = await blob.arrayBuffer();
+              resolve(arrayBuffer);
+            }, 'image/png');
+          };
+          
+          overlayImg.onerror = () => {
+            URL.revokeObjectURL(overlayUrl);
+            reject(new Error('Fehler beim Laden des Overlay-Skins'));
+          };
+          
+          overlayImg.src = overlayUrl;
+        } else {
+          // No overlay, return ArrayBuffer of base skin
+          canvas.toBlob(async (blob) => {
+            if (!blob) {
+              reject(new Error('Failed to create blob'));
+              return;
+            }
+            const arrayBuffer = await blob.arrayBuffer();
+            resolve(arrayBuffer);
+          }, 'image/png');
+        }
+      };
+      
+      baseImg.onerror = () => {
+        URL.revokeObjectURL(baseUrl);
+        reject(new Error('Fehler beim Laden des Basis-Skins'));
+      };
+      
+      baseImg.src = baseUrl;
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
 // Erzeuge Platzhalter-Skin (Canvas) -> Promise<ArrayBuffer>
 function createPlaceholderSkinPNG(width = 64, height = 64, drawX = true) {
   return new Promise((resolve, reject) => {
@@ -91,41 +166,89 @@ let skinsData = []; // { id, name, safeName, buffer, uploadedFile, textureFile, 
 let hasGeneratedInitialPlaceholders = false; // Track if initial placeholders were generated
 
 // ----------------- localStorage Functions -----------------
-function saveFormToLocalStorage() {
+// Convert ArrayBuffer to Base64
+function arrayBufferToBase64(buffer) {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+// Convert Base64 to ArrayBuffer
+function base64ToArrayBuffer(base64) {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+async function saveFormToLocalStorage() {
   try {
     const packNameInput = document.getElementById('packName');
     const packDescInput = document.getElementById('packDesc');
     const languageSelect = document.getElementById('language');
     
-    const formData = {
-      packName: packNameInput?.value || '',
-      packDesc: packDescInput?.value || '',
-      language: languageSelect?.value || 'en_US',
-      skins: skinsData.map(s => ({
+    // Convert skin PNG data to base64 for storage
+    const skinsWithPNG = await Promise.all(skinsData.map(async s => {
+      let pngBase64 = null;
+      
+      // Get PNG data from uploaded file or buffer
+      if (s.uploadedFile) {
+        const buffer = await s.uploadedFile.arrayBuffer();
+        pngBase64 = arrayBufferToBase64(buffer);
+      } else if (s.buffer) {
+        pngBase64 = arrayBufferToBase64(s.buffer);
+      }
+      
+      return {
         id: s.id,
         name: s.name,
         safeName: s.safeName,
         type: s.type,
         geometry: s.geometry,
-        hasUploadedFile: !!s.uploadedFile
-      })),
+        pngBase64: pngBase64 // Store PNG as base64
+      };
+    }));
+    
+    const formData = {
+      packName: packNameInput?.value || '',
+      packDesc: packDescInput?.value || '',
+      language: languageSelect?.value || 'en_US',
+      skins: skinsWithPNG,
       timestamp: Date.now()
     };
     
     localStorage.setItem('multiNotizenV5', JSON.stringify(formData));
-    console.log('[mcbe] Form data saved to localStorage');
+    console.log('[mcbe] Form data saved to localStorage (including PNG data)');
   } catch (e) {
     console.warn('[mcbe] Failed to save to localStorage:', e);
   }
 }
 
-function loadFormFromLocalStorage() {
+async function loadFormFromLocalStorage() {
   try {
     const saved = localStorage.getItem('multiNotizenV5');
     if (!saved) return null;
     
     const formData = JSON.parse(saved);
-    console.log('[mcbe] Loaded form data from localStorage', formData);
+    
+    // Convert base64 PNG data back to ArrayBuffer
+    if (formData.skins) {
+      for (const skin of formData.skins) {
+        if (skin.pngBase64) {
+          skin.buffer = base64ToArrayBuffer(skin.pngBase64);
+          delete skin.pngBase64; // Clean up
+        }
+      }
+    }
+    
+    console.log('[mcbe] Loaded form data from localStorage (including PNG data)');
     return formData;
   } catch (e) {
     console.warn('[mcbe] Failed to load from localStorage:', e);
@@ -211,17 +334,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Enable orbit controls
     zoomRenderer.controls.enabled = true;
     
-    // Load the same texture
-    if (skin.uploadedFile) {
-      zoomRenderer.loadSkinTexture(skin.uploadedFile).catch(e => {
-        console.warn('[mcbe] Failed to load skin texture in zoom:', e);
-      });
-    } else if (skin.buffer) {
-      const blob = new Blob([skin.buffer], { type: 'image/png' });
-      zoomRenderer.loadSkinTexture(blob).catch(e => {
-        console.warn('[mcbe] Failed to load texture in zoom:', e);
-      });
-    }
+    // Load the combined texture
+    loadCombinedSkinTexture(zoomRenderer, skin).catch(e => {
+      console.warn('[mcbe] Failed to load combined skin texture in zoom:', e);
+    });
     
     const info = document.createElement('div');
     info.className = 'skin-zoom-info';
@@ -256,6 +372,28 @@ document.addEventListener('DOMContentLoaded', () => {
     return modal;
   }
 
+  // Helper function to load combined skin texture into renderer
+  async function loadCombinedSkinTexture(renderer3D, skin) {
+    try {
+      let skinBuffer;
+      
+      if (skin.uploadedFile) {
+        skinBuffer = await skin.uploadedFile.arrayBuffer();
+      } else if (skin.buffer) {
+        skinBuffer = skin.buffer;
+      } else {
+        return; // No texture to load
+      }
+      
+      // Combine base skin with overlay (if any)
+      const combinedBuffer = await combineSkinLayers(skinBuffer, null);
+      const blob = new Blob([combinedBuffer], { type: 'image/png' });
+      await renderer3D.loadSkinTexture(blob);
+    } catch (e) {
+      console.warn('[mcbe] Failed to load combined skin texture:', e);
+    }
+  }
+
   // create DOM entry for skin and return fileInput so caller can open it
   function createSkinEntryDOM(skin) {
     const entry = document.createElement('div');
@@ -278,17 +416,8 @@ document.addEventListener('DOMContentLoaded', () => {
         autoRotate: true
       });
       
-      // Load skin texture if available
-      if (skin.uploadedFile) {
-        renderer3D.loadSkinTexture(skin.uploadedFile).catch(e => {
-          console.warn('[mcbe] Failed to load skin texture:', e);
-        });
-      } else if (skin.buffer) {
-        const blob = new Blob([skin.buffer], { type: 'image/png' });
-        renderer3D.loadSkinTexture(blob).catch(e => {
-          console.warn('[mcbe] Failed to load placeholder texture:', e);
-        });
-      }
+      // Load combined skin texture if available
+      loadCombinedSkinTexture(renderer3D, skin);
       
       // Store renderer reference
       skin.renderer3D = renderer3D;
@@ -347,17 +476,17 @@ document.addEventListener('DOMContentLoaded', () => {
           
           skin.uploadedFile = file;
           
-          // Update 3D preview
+          // Update 3D preview with combined skin
           if (skin.renderer3D) {
             try {
-              await skin.renderer3D.loadSkinTexture(file);
+              await loadCombinedSkinTexture(skin.renderer3D, skin);
             } catch (e) {
               console.warn('[mcbe] Failed to update 3D preview:', e);
             }
           }
           
           setStatus(`Skin "${skin.name}" erfolgreich hochgeladen (64x64px).`);
-          saveFormToLocalStorage();
+          await saveFormToLocalStorage();
         } catch (error) {
           setStatus(`Fehler: ${error.message}`);
           fileInput.value = ''; // Reset file input
@@ -451,7 +580,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function preGeneratePlaceholders(forceRegenerate = false) {
     // Try to load from localStorage first
     if (!forceRegenerate) {
-      const savedData = loadFormFromLocalStorage();
+      const savedData = await loadFormFromLocalStorage();
       if (savedData) {
         setStatus('Lade gespeicherte Daten...');
         
@@ -462,10 +591,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (pd) pd.value = savedData.packDesc || '';
         if (languageSelect) languageSelect.value = savedData.language || 'en_US';
         
-        // Restore skins
+        // Restore skins with PNG data
         skinsData = [];
         for (const savedSkin of savedData.skins || []) {
-          const buf = await createPlaceholderSkinPNG(64, 64, true);
+          // Use saved buffer if available, otherwise create placeholder
+          const buf = savedSkin.buffer || await createPlaceholderSkinPNG(64, 64, true);
+          
           skinsData.push({
             id: savedSkin.id || makeUUID(),
             name: savedSkin.name || `Skin-${randHex(4)}`,
@@ -480,7 +611,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (skinsData.length > 0) {
           populateFormFromGenerated();
-          setStatus('Gespeicherte Daten geladen.');
+          setStatus('Gespeicherte Daten geladen (inkl. PNG-Dateien).');
           hasGeneratedInitialPlaceholders = true;
           return;
         }
@@ -522,7 +653,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     populateFormFromGenerated();
     setStatus('Platzhalter erzeugt.');
-    saveFormToLocalStorage();
+    await saveFormToLocalStorage();
     hasGeneratedInitialPlaceholders = true;
     // Auto-download handled elsewhere if desired
   }
@@ -664,24 +795,13 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   regenBtn.addEventListener('click', async () => {
-    setStatus('Erzeuge neue Platzhalter für Skins...');
-    for (const s of skinsData) {
-      if (!s.uploadedFile) {
-        s.buffer = await createPlaceholderSkinPNG(64,64,true);
-        
-        // Update 3D preview
-        if (s.renderer3D) {
-          try {
-            const blob = new Blob([s.buffer], { type: 'image/png' });
-            await s.renderer3D.loadSkinTexture(blob);
-          } catch (e) {
-            console.warn('[mcbe] Failed to update 3D preview:', e);
-          }
-        }
-      }
+    if (confirm('Möchten Sie alle Daten löschen und neu generieren? Dies kann nicht rückgängig gemacht werden.')) {
+      // Clear only the application-specific localStorage keys
+      localStorage.removeItem('multiNotizenV5');
+      localStorage.removeItem('mcbe_comments');
+      // Reload the page
+      location.reload();
     }
-    setStatus('Neue Platzhalter wurden erzeugt.');
-    saveFormToLocalStorage();
   });
 
   form.addEventListener('submit', async (ev) => {
