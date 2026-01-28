@@ -797,8 +797,8 @@ document.addEventListener('DOMContentLoaded', () => {
   regenBtn.addEventListener('click', async () => {
     if (confirm('Möchten Sie alle Daten löschen und neu generieren? Dies kann nicht rückgängig gemacht werden.')) {
       // Clear only the application-specific localStorage keys
+      // DO NOT clear comments - they should be preserved
       localStorage.removeItem('multiNotizenV5');
-      localStorage.removeItem('mcbe_comments');
       // Reload the page
       location.reload();
     }

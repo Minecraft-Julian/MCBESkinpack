@@ -93,30 +93,30 @@ export class Skin3DRenderer {
     body.name = 'body';
     this.playerModel.add(body);
     
-    // Right Arm (3x12x4 for slim model) - using visible solid color
+    // Right Arm (3x12x4 for slim model)
     const armGeometry = new THREE.BoxGeometry(3, 12, 4);
-    const armMaterial = new THREE.MeshLambertMaterial({ color: 0x99cc66 });
+    const armMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
     const rightArm = new THREE.Mesh(armGeometry, armMaterial);
     rightArm.position.set(-5.5, 6, 0);
     rightArm.name = 'rightArm';
     this.playerModel.add(rightArm);
     
-    // Left Arm (3x12x4 for slim model) - using visible solid color
-    const leftArm = new THREE.Mesh(armGeometry, armMaterial.clone());
+    // Left Arm (3x12x4 for slim model)
+    const leftArm = new THREE.Mesh(armGeometry, new THREE.MeshLambertMaterial({ color: 0x888888 }));
     leftArm.position.set(5.5, 6, 0);
     leftArm.name = 'leftArm';
     this.playerModel.add(leftArm);
     
-    // Right Leg (4x12x4) - using visible solid color
+    // Right Leg (4x12x4)
     const legGeometry = new THREE.BoxGeometry(4, 12, 4);
-    const legMaterial = new THREE.MeshLambertMaterial({ color: 0x99cc66 });
+    const legMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
     const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
     rightLeg.position.set(-2, -6, 0);
     rightLeg.name = 'rightLeg';
     this.playerModel.add(rightLeg);
     
-    // Left Leg (4x12x4) - using visible solid color
-    const leftLeg = new THREE.Mesh(legGeometry, legMaterial.clone());
+    // Left Leg (4x12x4)
+    const leftLeg = new THREE.Mesh(legGeometry, new THREE.MeshLambertMaterial({ color: 0x888888 }));
     leftLeg.position.set(2, -6, 0);
     leftLeg.name = 'leftLeg';
     this.playerModel.add(leftLeg);
@@ -156,32 +156,44 @@ export class Skin3DRenderer {
   
   applySkinTexture(texture) {
     // Apply UV mapping for Minecraft skin format (64x64, 64x32, or 128x128)
-    // Apply texture only to head and body, keep arms and legs with solid colors
+    // Apply texture to all body parts: head, body, arms, and legs
     
-    const texturedParts = ['head', 'body']; // Only head and body get texture
+    const texturedParts = ['head', 'body', 'rightArm', 'leftArm', 'rightLeg', 'leftLeg'];
     
-    texturedParts.forEach(partName => {
+    // Track old texture to dispose it only once after all materials are updated
+    // Note: After first texture application, all parts share same texture
+    let oldTexture = null;
+    
+    texturedParts.forEach((partName, index) => {
       const part = this.playerModel.getObjectByName(partName);
       if (part) {
-        // Dispose old material and texture to prevent memory leak
+        // Save reference to old texture from first part that has one
+        // (all parts share same texture after initial texture application)
+        if (index === 0 && part.material && part.material.map) {
+          oldTexture = part.material.map;
+        }
+        
+        // Dispose old material
         if (part.material) {
-          if (part.material.map) part.material.map.dispose();
           part.material.dispose();
         }
         
+        // Share the same texture across all body parts to save memory
         part.material = new THREE.MeshLambertMaterial({
-          map: texture.clone(),
+          map: texture,
           transparent: true
         });
         part.material.map.needsUpdate = true;
         
-        // Apply basic UV mapping
+        // Apply UV mapping
         this.applyUVMapping(part, partName);
       }
     });
     
-    // Arms and legs keep their solid color materials (0x99cc66)
-    // No texture applied to: rightArm, leftArm, rightLeg, leftLeg
+    // Dispose old texture once after all materials are updated
+    if (oldTexture && oldTexture !== texture) {
+      oldTexture.dispose();
+    }
   }
   
   applyUVMapping(mesh, partName) {
@@ -334,16 +346,27 @@ export class Skin3DRenderer {
     }
     
     if (this.scene) {
+      // Collect unique textures to dispose them only once
+      const textures = new Set();
+      
       this.scene.traverse((object) => {
-        if (object.geometry) object.geometry.dispose();
+        if (object.geometry) {
+          object.geometry.dispose();
+        }
         if (object.material) {
-          if (Array.isArray(object.material)) {
-            object.material.forEach(material => material.dispose());
-          } else {
-            object.material.dispose();
-          }
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          materials.forEach(material => {
+            // Collect texture reference before disposing material
+            if (material.map) {
+              textures.add(material.map);
+            }
+            material.dispose();
+          });
         }
       });
+      
+      // Dispose each unique texture once
+      textures.forEach(texture => texture.dispose());
     }
   }
 }
