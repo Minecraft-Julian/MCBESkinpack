@@ -778,9 +778,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const saved = localStorage.getItem('mcbe_comments');
       if (saved) {
         comments = JSON.parse(saved);
+        console.log('[mcbe] Loaded', comments.length, 'comments from localStorage');
+      } else {
+        console.log('[mcbe] No comments found in localStorage');
       }
     } catch (e) {
-      console.warn('[mcbe] Failed to load comments:', e);
+      console.error('[mcbe] Failed to load comments:', e);
+      comments = [];
     }
   }
   
@@ -788,8 +792,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function saveComments() {
     try {
       localStorage.setItem('mcbe_comments', JSON.stringify(comments));
+      console.log('[mcbe] Saved', comments.length, 'comments to localStorage');
     } catch (e) {
-      console.warn('[mcbe] Failed to save comments:', e);
+      console.error('[mcbe] Failed to save comments:', e);
+      throw e; // Re-throw to handle in calling function
     }
   }
   
@@ -943,49 +949,80 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Add new comment
   async function addComment(name, text) {
-    const newComment = {
-      id: makeUUID(),
-      name,
-      text,
-      timestamp: Date.now(),
-      replies: []
-    };
+    console.log('[mcbe] Adding new comment from:', name);
     
-    comments.unshift(newComment); // Add to beginning
-    saveComments();
-    renderComments();
-    
-    // Send email notification asynchronously
-    sendEmailNotification(newComment).catch(e => {
-      console.warn('[mcbe] Email notification error:', e);
-    });
-    
-    setStatus('Kommentar hinzugefügt.');
+    try {
+      const newComment = {
+        id: makeUUID(),
+        name,
+        text,
+        timestamp: Date.now(),
+        replies: []
+      };
+      
+      comments.unshift(newComment); // Add to beginning
+      saveComments();
+      renderComments();
+      
+      console.log('[mcbe] Comment saved successfully. Total comments:', comments.length);
+      
+      // Send email notification asynchronously
+      sendEmailNotification(newComment).catch(e => {
+        console.warn('[mcbe] Email notification error:', e);
+      });
+      
+      setStatus('Kommentar erfolgreich hinzugefügt!');
+      
+      // Clear status after 3 seconds
+      setTimeout(() => setStatus(''), 3000);
+    } catch (error) {
+      console.error('[mcbe] Error adding comment:', error);
+      setStatus('Fehler beim Hinzufügen des Kommentars: ' + error.message);
+    }
   }
   
   // Initialize comments system
   const submitCommentBtn = document.getElementById('submitComment');
   if (submitCommentBtn) {
-    submitCommentBtn.addEventListener('click', () => {
+    submitCommentBtn.addEventListener('click', async () => {
+      console.log('[mcbe] Comment submit button clicked');
+      
       const nameInput = document.getElementById('commentName');
       const textInput = document.getElementById('commentText');
       
-      if (!nameInput || !textInput) return;
+      if (!nameInput || !textInput) {
+        console.error('[mcbe] Comment input fields not found');
+        return;
+      }
       
       const name = nameInput.value.trim();
       const text = textInput.value.trim();
+      
+      console.log('[mcbe] Comment data - Name:', name, 'Text length:', text.length);
       
       if (!name || !text) {
         alert('Bitte Name und Kommentar eingeben.');
         return;
       }
       
-      addComment(name, text);
+      // Disable button during submission
+      submitCommentBtn.disabled = true;
+      submitCommentBtn.textContent = 'Wird gesendet...';
       
-      // Clear form
-      nameInput.value = '';
-      textInput.value = '';
+      try {
+        await addComment(name, text);
+        
+        // Clear form
+        nameInput.value = '';
+        textInput.value = '';
+      } finally {
+        // Re-enable button
+        submitCommentBtn.disabled = false;
+        submitCommentBtn.textContent = 'Kommentar absenden';
+      }
     });
+  } else {
+    console.error('[mcbe] Submit comment button not found');
   }
   
   // Load and render comments on page load
