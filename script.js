@@ -91,32 +91,88 @@ let skinsData = []; // { id, name, safeName, buffer, uploadedFile, textureFile, 
 let hasGeneratedInitialPlaceholders = false; // Track if initial placeholders were generated
 
 // ----------------- localStorage Functions -----------------
-function saveFormToLocalStorage() {
+async function saveFormToLocalStorage() {
   try {
     const packNameInput = document.getElementById('packName');
     const packDescInput = document.getElementById('packDesc');
     const languageSelect = document.getElementById('language');
     
-    const formData = {
-      packName: packNameInput?.value || '',
-      packDesc: packDescInput?.value || '',
-      language: languageSelect?.value || 'en_US',
-      skins: skinsData.map(s => ({
+    // Convert skin buffers and files to base64 for storage
+    const skinsToSave = await Promise.all(skinsData.map(async s => {
+      let textureData = null;
+      
+      // Store texture as base64
+      if (s.uploadedFile) {
+        textureData = await fileToBase64(s.uploadedFile);
+      } else if (s.buffer) {
+        textureData = await bufferToBase64(s.buffer);
+      }
+      
+      return {
         id: s.id,
         name: s.name,
         safeName: s.safeName,
         type: s.type,
         geometry: s.geometry,
+        textureData: textureData,
         hasUploadedFile: !!s.uploadedFile
-      })),
+      };
+    }));
+    
+    const formData = {
+      packName: packNameInput?.value || '',
+      packDesc: packDescInput?.value || '',
+      language: languageSelect?.value || 'en_US',
+      skins: skinsToSave,
       timestamp: Date.now()
     };
     
     localStorage.setItem('multiNotizenV5', JSON.stringify(formData));
-    console.log('[mcbe] Form data saved to localStorage');
+    console.log('[mcbe] Form data saved to localStorage with textures');
   } catch (e) {
     console.warn('[mcbe] Failed to save to localStorage:', e);
   }
+}
+
+// Helper function to convert File to base64
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// Helper function to convert buffer to base64
+function bufferToBase64(buffer) {
+  return new Promise((resolve) => {
+    const blob = new Blob([buffer], { type: 'image/png' });
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(blob);
+  });
+}
+
+// Helper function to convert base64 to blob
+function base64ToBlob(base64) {
+  return new Promise((resolve, reject) => {
+    try {
+      const parts = base64.split(';base64,');
+      const contentType = parts[0].split(':')[1];
+      const raw = window.atob(parts[1]);
+      const rawLength = raw.length;
+      const uInt8Array = new Uint8Array(rawLength);
+      
+      for (let i = 0; i < rawLength; ++i) {
+        uInt8Array[i] = raw.charCodeAt(i);
+      }
+      
+      resolve(new Blob([uInt8Array], { type: contentType }));
+    } catch (e) {
+      reject(e);
+    }
+  });
 }
 
 function loadFormFromLocalStorage() {
@@ -465,13 +521,37 @@ document.addEventListener('DOMContentLoaded', () => {
         // Restore skins
         skinsData = [];
         for (const savedSkin of savedData.skins || []) {
-          const buf = await createPlaceholderSkinPNG(64, 64, true);
+          let buffer = null;
+          let uploadedFile = null;
+          
+          // Restore texture from base64
+          if (savedSkin.textureData) {
+            try {
+              const blob = await base64ToBlob(savedSkin.textureData);
+              buffer = await blob.arrayBuffer();
+              
+              // If it was an uploaded file, recreate it as a File
+              if (savedSkin.hasUploadedFile) {
+                uploadedFile = new File([buffer], 'skin.png', { type: 'image/png' });
+              }
+              
+              console.log('[mcbe] Restored texture for skin:', savedSkin.name);
+            } catch (e) {
+              console.warn('[mcbe] Failed to restore texture for skin:', savedSkin.name, e);
+              // Fallback to placeholder
+              buffer = await createPlaceholderSkinPNG(64, 64, true);
+            }
+          } else {
+            // No saved texture, create placeholder
+            buffer = await createPlaceholderSkinPNG(64, 64, true);
+          }
+          
           skinsData.push({
             id: savedSkin.id || makeUUID(),
             name: savedSkin.name || `Skin-${randHex(4)}`,
             safeName: savedSkin.safeName || safeFileName(savedSkin.name),
-            buffer: buf,
-            uploadedFile: null,
+            buffer: buffer,
+            uploadedFile: uploadedFile,
             textureFile: `skin-${skinsData.length + 1}.png`,
             type: savedSkin.type || 'free',
             geometry: savedSkin.geometry || 'geometry.humanoid.customSlim'
