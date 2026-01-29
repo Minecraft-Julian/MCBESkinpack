@@ -798,7 +798,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   regenBtn.addEventListener('click', async () => {
     if (confirm('Möchten Sie alle Daten löschen und neu generieren? Dies kann nicht rückgängig gemacht werden.')) {
-      // Clear all localStorage and reload the page
+      // Clear ALL localStorage (including comments) and reload the page
+      // This completely resets the application to a fresh state
       localStorage.clear();
       location.reload();
     }
