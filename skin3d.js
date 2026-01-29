@@ -8,7 +8,7 @@ import { OrbitControls } from './OrbitControls.js';
  * Helper function to set UV coordinates for a BoxGeometry
  * Based on the Minecraft texture layout.
  */
-function setUVs(box, u, v, width, height, depth, textureWidth, textureHeight) {
+function setUVs(geometry, u, v, width, height, depth, textureWidth, textureHeight) {
     const toFaceVertices = (x1, y1, x2, y2) => [
         new THREE.Vector2(x1 / textureWidth, 1.0 - y2 / textureHeight),
         new THREE.Vector2(x2 / textureWidth, 1.0 - y2 / textureHeight),
@@ -23,7 +23,9 @@ function setUVs(box, u, v, width, height, depth, textureWidth, textureHeight) {
     const right = toFaceVertices(u + width + depth, v + depth, u + width + depth * 2, v + height + depth);
     const back = toFaceVertices(u + width + depth * 2, v + depth, u + width * 2 + depth * 2, v + height + depth);
 
-    const uvAttr = box.attributes.uv;
+    const uvAttr = geometry.attributes.uv;
+    if (!uvAttr) return; // Guard check for geometries without UV attributes
+    
     // Order in Three.js BoxGeometry: Right, Left, Top, Bottom, Front, Back
     const faces = [right, left, top, bottom, front, back];
     const newUVData = [];
@@ -86,7 +88,8 @@ export class Skin3DRenderer {
     }
 
     createBodyPart(name, w, h, d, u, v, isLayer2 = false) {
-        const offset = isLayer2 ? 0.5 : 0;
+        const LAYER2_OFFSET = 0.5; // Offset for outer layer to make it slightly larger
+        const offset = isLayer2 ? LAYER2_OFFSET : 0;
         const geometry = new THREE.BoxGeometry(w + offset, h + offset, d + offset);
         
         setUVs(geometry, u, v, w, h, d, 64, 64);
@@ -105,6 +108,7 @@ export class Skin3DRenderer {
     createPlayerModel() {
         this.playerModel = new THREE.Group();
         const armW = this.isSlim ? 3 : 4;
+        const MODEL_Y_OFFSET = 4; // Vertical offset to center the model
 
         // Parts Definition: [name, w, h, d, u_inner, v_inner, u_outer, v_outer]
         const parts = [
@@ -127,12 +131,12 @@ export class Skin3DRenderer {
             group.add(outer);
 
             // Positioning
-            if (name === 'head') group.position.y = 12 + 4;
-            if (name === 'body') group.position.y = 6 + 4;
-            if (name === 'rightArm') group.position.set(-(4 + armW/2), 6 + 4, 0);
-            if (name === 'leftArm') group.position.set(4 + armW/2, 6 + 4, 0);
-            if (name === 'rightLeg') group.position.set(-2, -6 + 4, 0);
-            if (name === 'leftLeg') group.position.set(2, -6 + 4, 0);
+            if (name === 'head') group.position.y = 12 + MODEL_Y_OFFSET;
+            if (name === 'body') group.position.y = 6 + MODEL_Y_OFFSET;
+            if (name === 'rightArm') group.position.set(-(4 + armW/2), 6 + MODEL_Y_OFFSET, 0);
+            if (name === 'leftArm') group.position.set(4 + armW/2, 6 + MODEL_Y_OFFSET, 0);
+            if (name === 'rightLeg') group.position.set(-2, -6 + MODEL_Y_OFFSET, 0);
+            if (name === 'leftLeg') group.position.set(2, -6 + MODEL_Y_OFFSET, 0);
 
             this.playerModel.add(group);
         });
@@ -144,23 +148,45 @@ export class Skin3DRenderer {
         texture.magFilter = THREE.NearestFilter;
         texture.minFilter = THREE.NearestFilter;
         
+        // Track old texture to dispose it
+        let oldTexture = null;
+        
         this.playerModel.traverse((child) => {
             if (child.isMesh) {
+                // Save reference to old texture from first mesh
+                if (!oldTexture && child.material && child.material.map) {
+                    oldTexture = child.material.map;
+                }
+                
                 child.material.map = texture;
                 child.material.needsUpdate = true;
             }
         });
+        
+        // Dispose old texture if it exists and is different from new texture
+        if (oldTexture && oldTexture !== texture) {
+            oldTexture.dispose();
+        }
     }
 
     async loadSkinTexture(source) {
         const loader = new THREE.TextureLoader();
         const url = source instanceof File || source instanceof Blob ? URL.createObjectURL(source) : source;
+        const isObjectURL = source instanceof File || source instanceof Blob;
         
         return new Promise((resolve, reject) => {
             loader.load(url, (tex) => {
+                if (isObjectURL) {
+                    URL.revokeObjectURL(url);
+                }
                 this.applySkinTexture(tex);
                 resolve(tex);
-            }, undefined, reject);
+            }, undefined, (error) => {
+                if (isObjectURL) {
+                    URL.revokeObjectURL(url);
+                }
+                reject(error);
+            });
         });
     }
 
@@ -195,7 +221,7 @@ export class Skin3DRenderer {
 
     animate() {
         this.animationId = requestAnimationFrame(() => this.animate());
-        if (this.autoRotate && this.playerModel && !this.controls.enabled) {
+        if (this.autoRotate && this.playerModel) {
             this.playerModel.rotation.y += 0.01;
         }
         if (this.controls.enabled) this.controls.update();
