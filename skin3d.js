@@ -216,6 +216,8 @@ export class Skin3DRenderer {
    * Maps standard Minecraft 64x64 skin texture format to all 6 faces
    * @param {THREE.BufferGeometry} geometry - The box geometry to apply UVs to
    * @param {Object} uvMap - UV coordinates for each face {right, left, top, bottom, front, back}
+   *                         Each face contains an array of 4 UV coordinate pairs [[u0,v0], [u1,v1], [u2,v2], [u3,v3]]
+   *                         representing bottom-left, bottom-right, top-right, and top-left corners respectively
    */
   setUVs(geometry, uvMap) {
     const uvArray = [];
@@ -226,14 +228,14 @@ export class Skin3DRenderer {
     faceOrder.forEach(face => {
       const coords = uvMap[face];
       if (coords) {
-        // Each face has 4 UV coordinates in order: bottom-left, bottom-right, top-right, top-left
-        // We need to split into 2 triangles for Three.js
-        // Triangle 1: vertices 0, 1, 3
+        // Each face has 4 UV coordinates for the quad corners
+        // Split into 2 triangles by applying UVs to triangle vertices
+        // Triangle 1: bottom-left, bottom-right, top-left
         uvArray.push(coords[0][0], coords[0][1]);  // bottom-left
         uvArray.push(coords[1][0], coords[1][1]);  // bottom-right
         uvArray.push(coords[3][0], coords[3][1]);  // top-left
         
-        // Triangle 2: vertices 1, 2, 3
+        // Triangle 2: bottom-right, top-right, top-left
         uvArray.push(coords[1][0], coords[1][1]);  // bottom-right
         uvArray.push(coords[2][0], coords[2][1]);  // top-right
         uvArray.push(coords[3][0], coords[3][1]);  // top-left
