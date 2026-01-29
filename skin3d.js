@@ -74,54 +74,50 @@ export class Skin3DRenderer {
   }
   
   createPlayerModel() {
-    // Create a simplified Minecraft player model (humanoid.customSlim compatible)
+    // Create an advanced Minecraft player model with dual layers (inner + outer)
+    // Compatible with humanoid.customSlim geometry
     this.playerModel = new THREE.Group();
     
-    // Head (8x8x8)
-    const headGeometry = new THREE.BoxGeometry(8, 8, 8);
-    const headMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
-    const head = new THREE.Mesh(headGeometry, headMaterial);
-    head.position.y = 12;
-    head.name = 'head';
-    this.playerModel.add(head);
-    
-    // Body (8x12x4)
-    const bodyGeometry = new THREE.BoxGeometry(8, 12, 4);
-    const bodyMaterial = new THREE.MeshLambertMaterial({ color: 0x666666 });
-    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-    body.position.y = 6;
-    body.name = 'body';
-    this.playerModel.add(body);
-    
-    // Right Arm (3x12x4 for slim model)
-    const armGeometry = new THREE.BoxGeometry(3, 12, 4);
-    const armMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
-    const rightArm = new THREE.Mesh(armGeometry, armMaterial);
-    rightArm.position.set(-5.5, 6, 0);
-    rightArm.name = 'rightArm';
-    this.playerModel.add(rightArm);
-    
-    // Left Arm (3x12x4 for slim model)
-    const leftArm = new THREE.Mesh(armGeometry, new THREE.MeshLambertMaterial({ color: 0x888888 }));
-    leftArm.position.set(5.5, 6, 0);
-    leftArm.name = 'leftArm';
-    this.playerModel.add(leftArm);
-    
-    // Right Leg (4x12x4)
-    const legGeometry = new THREE.BoxGeometry(4, 12, 4);
-    const legMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
-    const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
-    rightLeg.position.set(-2, -6, 0);
-    rightLeg.name = 'rightLeg';
-    this.playerModel.add(rightLeg);
-    
-    // Left Leg (4x12x4)
-    const leftLeg = new THREE.Mesh(legGeometry, new THREE.MeshLambertMaterial({ color: 0x888888 }));
-    leftLeg.position.set(2, -6, 0);
-    leftLeg.name = 'leftLeg';
-    this.playerModel.add(leftLeg);
+    // Create body parts with dual layers
+    this.createBodyPart('head', 8, 8, 8, 0, 12, 0);
+    this.createBodyPart('body', 8, 12, 4, 0, 6, 0);
+    this.createBodyPart('rightArm', 3, 12, 4, -5.5, 6, 0);  // Slim arms (3 units)
+    this.createBodyPart('leftArm', 3, 12, 4, 5.5, 6, 0);    // Slim arms (3 units)
+    this.createBodyPart('rightLeg', 4, 12, 4, -2, -6, 0);
+    this.createBodyPart('leftLeg', 4, 12, 4, 2, -6, 0);
     
     this.scene.add(this.playerModel);
+  }
+  
+  createBodyPart(name, width, height, depth, x, y, z) {
+    // Create a group for this body part to hold both inner and outer layers
+    const partGroup = new THREE.Group();
+    partGroup.name = name;
+    partGroup.position.set(x, y, z);
+    
+    // Inner layer
+    const innerGeometry = new THREE.BoxGeometry(width, height, depth);
+    const innerMaterial = new THREE.MeshLambertMaterial({ 
+      color: 0x888888,
+      transparent: true,
+      alphaTest: 0.5
+    });
+    const innerMesh = new THREE.Mesh(innerGeometry, innerMaterial);
+    innerMesh.name = name + 'Inner';
+    partGroup.add(innerMesh);
+    
+    // Outer layer (slightly larger by 0.5 units for overlay effect)
+    const outerGeometry = new THREE.BoxGeometry(width + 0.5, height + 0.5, depth + 0.5);
+    const outerMaterial = new THREE.MeshLambertMaterial({ 
+      color: 0x888888,
+      transparent: true,
+      alphaTest: 0.5
+    });
+    const outerMesh = new THREE.Mesh(outerGeometry, outerMaterial);
+    outerMesh.name = name + 'Outer';
+    partGroup.add(outerMesh);
+    
+    this.playerModel.add(partGroup);
   }
   
   loadSkinTexture(imageSource) {
@@ -156,37 +152,56 @@ export class Skin3DRenderer {
   
   applySkinTexture(texture) {
     // Apply UV mapping for Minecraft skin format (64x64, 64x32, or 128x128)
-    // Apply texture to all body parts: head, body, arms, and legs
+    // Apply texture to all body parts with dual layers (inner and outer)
     
-    const texturedParts = ['head', 'body', 'rightArm', 'leftArm', 'rightLeg', 'leftLeg'];
+    const bodyParts = ['head', 'body', 'rightArm', 'leftArm', 'rightLeg', 'leftLeg'];
     
     // Track old texture to dispose it only once after all materials are updated
-    // Note: After first texture application, all parts share same texture
     let oldTexture = null;
     
-    texturedParts.forEach((partName, index) => {
-      const part = this.playerModel.getObjectByName(partName);
-      if (part) {
+    bodyParts.forEach((partName, index) => {
+      const partGroup = this.playerModel.getObjectByName(partName);
+      if (partGroup) {
+        // Get inner and outer meshes
+        const innerMesh = partGroup.getObjectByName(partName + 'Inner');
+        const outerMesh = partGroup.getObjectByName(partName + 'Outer');
+        
         // Save reference to old texture from first part that has one
-        // (all parts share same texture after initial texture application)
-        if (index === 0 && part.material && part.material.map) {
-          oldTexture = part.material.map;
+        if (index === 0 && innerMesh && innerMesh.material && innerMesh.material.map) {
+          oldTexture = innerMesh.material.map;
         }
         
-        // Dispose old material
-        if (part.material) {
-          part.material.dispose();
+        // Update inner layer
+        if (innerMesh) {
+          if (innerMesh.material) {
+            innerMesh.material.dispose();
+          }
+          innerMesh.material = new THREE.MeshLambertMaterial({
+            map: texture,
+            transparent: true,
+            alphaTest: 0.5
+          });
+          innerMesh.material.map.needsUpdate = true;
+          
+          // Apply UV mapping for inner layer
+          this.applyUVMapping(innerMesh, partName, false);
         }
         
-        // Share the same texture across all body parts to save memory
-        part.material = new THREE.MeshLambertMaterial({
-          map: texture,
-          transparent: true
-        });
-        part.material.map.needsUpdate = true;
-        
-        // Apply UV mapping
-        this.applyUVMapping(part, partName);
+        // Update outer layer
+        if (outerMesh) {
+          if (outerMesh.material) {
+            outerMesh.material.dispose();
+          }
+          outerMesh.material = new THREE.MeshLambertMaterial({
+            map: texture,
+            transparent: true,
+            alphaTest: 0.5
+          });
+          outerMesh.material.map.needsUpdate = true;
+          
+          // Apply UV mapping for outer layer
+          this.applyUVMapping(outerMesh, partName, true);
+        }
       }
     });
     
@@ -196,96 +211,177 @@ export class Skin3DRenderer {
     }
   }
   
-  applyUVMapping(mesh, partName) {
+  /**
+   * Helper function to set UV coordinates for a box geometry
+   * Maps standard Minecraft 64x64 skin texture format to all 6 faces
+   * @param {THREE.BufferGeometry} geometry - The box geometry to apply UVs to
+   * @param {Object} uvMap - UV coordinates for each face {right, left, top, bottom, front, back}
+   *                         Each face contains an array of 4 UV coordinate pairs [[u0,v0], [u1,v1], [u2,v2], [u3,v3]]
+   *                         representing bottom-left, bottom-right, top-right, and top-left corners respectively
+   */
+  setUVs(geometry, uvMap) {
+    const uvArray = [];
+    // Box geometry has 6 faces, each face has 2 triangles (4 vertices)
+    // Order: right, left, top, bottom, front, back
+    const faceOrder = ['right', 'left', 'top', 'bottom', 'front', 'back'];
+    
+    faceOrder.forEach(face => {
+      const coords = uvMap[face];
+      if (coords) {
+        // Each face has 4 UV coordinates for the quad corners
+        // Split into 2 triangles by applying UVs to triangle vertices
+        // Triangle 1: bottom-left, bottom-right, top-left
+        uvArray.push(coords[0][0], coords[0][1]);  // bottom-left
+        uvArray.push(coords[1][0], coords[1][1]);  // bottom-right
+        uvArray.push(coords[3][0], coords[3][1]);  // top-left
+        
+        // Triangle 2: bottom-right, top-right, top-left
+        uvArray.push(coords[1][0], coords[1][1]);  // bottom-right
+        uvArray.push(coords[2][0], coords[2][1]);  // top-right
+        uvArray.push(coords[3][0], coords[3][1]);  // top-left
+      }
+    });
+    
+    geometry.setAttribute('uv', new Float32BufferAttribute(uvArray, 2));
+    geometry.attributes.uv.needsUpdate = true;
+  }
+  
+  applyUVMapping(mesh, partName, isOuter) {
     // Apply proper UV mapping for Minecraft skin format (64x32, 64x64, or 128x128)
     const geometry = mesh.geometry;
     if (!geometry.attributes.uv) return;
     
     // Minecraft skin UV coordinates for each body part
     // Format: [u, v] where u,v are in range 0-1
+    // For outer layers, we use the second layer coordinates (offset in the texture)
     const uvMappings = {
       head: {
-        // Head is 8x8x8 pixels at position (0, 0) and (32, 0) in the texture
-        right:  [[16/64, 8/64], [24/64, 8/64], [24/64, 16/64], [16/64, 16/64]],
-        left:   [[0/64, 8/64], [8/64, 8/64], [8/64, 16/64], [0/64, 16/64]],
-        top:    [[8/64, 0/64], [16/64, 0/64], [16/64, 8/64], [8/64, 8/64]],
-        bottom: [[16/64, 0/64], [24/64, 0/64], [24/64, 8/64], [16/64, 8/64]],
-        front:  [[8/64, 8/64], [16/64, 8/64], [16/64, 16/64], [8/64, 16/64]],
-        back:   [[24/64, 8/64], [32/64, 8/64], [32/64, 16/64], [24/64, 16/64]]
+        inner: {
+          // Head inner layer is at position (0, 0) in the texture
+          right:  [[16/64, 8/64], [24/64, 8/64], [24/64, 16/64], [16/64, 16/64]],
+          left:   [[0/64, 8/64], [8/64, 8/64], [8/64, 16/64], [0/64, 16/64]],
+          top:    [[8/64, 0/64], [16/64, 0/64], [16/64, 8/64], [8/64, 8/64]],
+          bottom: [[16/64, 0/64], [24/64, 0/64], [24/64, 8/64], [16/64, 8/64]],
+          front:  [[8/64, 8/64], [16/64, 8/64], [16/64, 16/64], [8/64, 16/64]],
+          back:   [[24/64, 8/64], [32/64, 8/64], [32/64, 16/64], [24/64, 16/64]]
+        },
+        outer: {
+          // Head outer layer (hat) is at position (32, 0) in the texture
+          right:  [[48/64, 8/64], [56/64, 8/64], [56/64, 16/64], [48/64, 16/64]],
+          left:   [[32/64, 8/64], [40/64, 8/64], [40/64, 16/64], [32/64, 16/64]],
+          top:    [[40/64, 0/64], [48/64, 0/64], [48/64, 8/64], [40/64, 8/64]],
+          bottom: [[48/64, 0/64], [56/64, 0/64], [56/64, 8/64], [48/64, 8/64]],
+          front:  [[40/64, 8/64], [48/64, 8/64], [48/64, 16/64], [40/64, 16/64]],
+          back:   [[56/64, 8/64], [64/64, 8/64], [64/64, 16/64], [56/64, 16/64]]
+        }
       },
       body: {
-        // Body is 8x12x4 pixels
-        right:  [[28/64, 20/64], [32/64, 20/64], [32/64, 32/64], [28/64, 32/64]],
-        left:   [[16/64, 20/64], [20/64, 20/64], [20/64, 32/64], [16/64, 32/64]],
-        top:    [[20/64, 16/64], [28/64, 16/64], [28/64, 20/64], [20/64, 20/64]],
-        bottom: [[28/64, 16/64], [36/64, 16/64], [36/64, 20/64], [28/64, 20/64]],
-        front:  [[20/64, 20/64], [28/64, 20/64], [28/64, 32/64], [20/64, 32/64]],
-        back:   [[32/64, 20/64], [40/64, 20/64], [40/64, 32/64], [32/64, 32/64]]
+        inner: {
+          // Body inner layer (8x12x4)
+          right:  [[28/64, 20/64], [32/64, 20/64], [32/64, 32/64], [28/64, 32/64]],
+          left:   [[16/64, 20/64], [20/64, 20/64], [20/64, 32/64], [16/64, 32/64]],
+          top:    [[20/64, 16/64], [28/64, 16/64], [28/64, 20/64], [20/64, 20/64]],
+          bottom: [[28/64, 16/64], [36/64, 16/64], [36/64, 20/64], [28/64, 20/64]],
+          front:  [[20/64, 20/64], [28/64, 20/64], [28/64, 32/64], [20/64, 32/64]],
+          back:   [[32/64, 20/64], [40/64, 20/64], [40/64, 32/64], [32/64, 32/64]]
+        },
+        outer: {
+          // Body outer layer (jacket) at position (16, 32) in the texture
+          right:  [[28/64, 36/64], [32/64, 36/64], [32/64, 48/64], [28/64, 48/64]],
+          left:   [[16/64, 36/64], [20/64, 36/64], [20/64, 48/64], [16/64, 48/64]],
+          top:    [[20/64, 32/64], [28/64, 32/64], [28/64, 36/64], [20/64, 36/64]],
+          bottom: [[28/64, 32/64], [36/64, 32/64], [36/64, 36/64], [28/64, 36/64]],
+          front:  [[20/64, 36/64], [28/64, 36/64], [28/64, 48/64], [20/64, 48/64]],
+          back:   [[32/64, 36/64], [40/64, 36/64], [40/64, 48/64], [32/64, 48/64]]
+        }
       },
       rightArm: {
-        // Right arm slim (3x12x4)
-        right:  [[44/64, 20/64], [47/64, 20/64], [47/64, 32/64], [44/64, 32/64]],
-        left:   [[40/64, 20/64], [43/64, 20/64], [43/64, 32/64], [40/64, 32/64]],
-        top:    [[43/64, 16/64], [47/64, 16/64], [47/64, 20/64], [43/64, 20/64]],
-        bottom: [[47/64, 16/64], [51/64, 16/64], [51/64, 20/64], [47/64, 20/64]],
-        front:  [[43/64, 20/64], [47/64, 20/64], [47/64, 32/64], [43/64, 32/64]],
-        back:   [[51/64, 20/64], [55/64, 20/64], [55/64, 32/64], [51/64, 32/64]]
+        inner: {
+          // Right arm slim (3x12x4)
+          right:  [[44/64, 20/64], [47/64, 20/64], [47/64, 32/64], [44/64, 32/64]],
+          left:   [[40/64, 20/64], [43/64, 20/64], [43/64, 32/64], [40/64, 32/64]],
+          top:    [[43/64, 16/64], [47/64, 16/64], [47/64, 20/64], [43/64, 20/64]],
+          bottom: [[47/64, 16/64], [51/64, 16/64], [51/64, 20/64], [47/64, 20/64]],
+          front:  [[43/64, 20/64], [47/64, 20/64], [47/64, 32/64], [43/64, 32/64]],
+          back:   [[51/64, 20/64], [55/64, 20/64], [55/64, 32/64], [51/64, 32/64]]
+        },
+        outer: {
+          // Right arm outer layer (sleeve) at position (40, 32) in the texture
+          right:  [[44/64, 36/64], [47/64, 36/64], [47/64, 48/64], [44/64, 48/64]],
+          left:   [[40/64, 36/64], [43/64, 36/64], [43/64, 48/64], [40/64, 48/64]],
+          top:    [[43/64, 32/64], [47/64, 32/64], [47/64, 36/64], [43/64, 36/64]],
+          bottom: [[47/64, 32/64], [51/64, 32/64], [51/64, 36/64], [47/64, 36/64]],
+          front:  [[43/64, 36/64], [47/64, 36/64], [47/64, 48/64], [43/64, 48/64]],
+          back:   [[51/64, 36/64], [55/64, 36/64], [55/64, 48/64], [51/64, 48/64]]
+        }
       },
       leftArm: {
-        // Left arm slim (3x12x4)
-        right:  [[36/64, 52/64], [39/64, 52/64], [39/64, 64/64], [36/64, 64/64]],
-        left:   [[32/64, 52/64], [35/64, 52/64], [35/64, 64/64], [32/64, 64/64]],
-        top:    [[35/64, 48/64], [39/64, 48/64], [39/64, 52/64], [35/64, 52/64]],
-        bottom: [[39/64, 48/64], [43/64, 48/64], [43/64, 52/64], [39/64, 52/64]],
-        front:  [[35/64, 52/64], [39/64, 52/64], [39/64, 64/64], [35/64, 64/64]],
-        back:   [[43/64, 52/64], [47/64, 52/64], [47/64, 64/64], [43/64, 64/64]]
+        inner: {
+          // Left arm slim (3x12x4)
+          right:  [[36/64, 52/64], [39/64, 52/64], [39/64, 64/64], [36/64, 64/64]],
+          left:   [[32/64, 52/64], [35/64, 52/64], [35/64, 64/64], [32/64, 64/64]],
+          top:    [[35/64, 48/64], [39/64, 48/64], [39/64, 52/64], [35/64, 52/64]],
+          bottom: [[39/64, 48/64], [43/64, 48/64], [43/64, 52/64], [39/64, 52/64]],
+          front:  [[35/64, 52/64], [39/64, 52/64], [39/64, 64/64], [35/64, 64/64]],
+          back:   [[43/64, 52/64], [47/64, 52/64], [47/64, 64/64], [43/64, 64/64]]
+        },
+        outer: {
+          // Left arm outer layer (sleeve) at position (48, 48) in the texture
+          right:  [[52/64, 52/64], [55/64, 52/64], [55/64, 64/64], [52/64, 64/64]],
+          left:   [[48/64, 52/64], [51/64, 52/64], [51/64, 64/64], [48/64, 64/64]],
+          top:    [[51/64, 48/64], [55/64, 48/64], [55/64, 52/64], [51/64, 52/64]],
+          bottom: [[55/64, 48/64], [59/64, 48/64], [59/64, 52/64], [55/64, 52/64]],
+          front:  [[51/64, 52/64], [55/64, 52/64], [55/64, 64/64], [51/64, 64/64]],
+          back:   [[59/64, 52/64], [63/64, 52/64], [63/64, 64/64], [59/64, 64/64]]
+        }
       },
       rightLeg: {
-        // Right leg (4x12x4)
-        right:  [[4/64, 20/64], [8/64, 20/64], [8/64, 32/64], [4/64, 32/64]],
-        left:   [[0/64, 20/64], [4/64, 20/64], [4/64, 32/64], [0/64, 32/64]],
-        top:    [[4/64, 16/64], [8/64, 16/64], [8/64, 20/64], [4/64, 20/64]],
-        bottom: [[8/64, 16/64], [12/64, 16/64], [12/64, 20/64], [8/64, 20/64]],
-        front:  [[4/64, 20/64], [8/64, 20/64], [8/64, 32/64], [4/64, 32/64]],
-        back:   [[12/64, 20/64], [16/64, 20/64], [16/64, 32/64], [12/64, 32/64]]
+        inner: {
+          // Right leg (4x12x4)
+          right:  [[4/64, 20/64], [8/64, 20/64], [8/64, 32/64], [4/64, 32/64]],
+          left:   [[0/64, 20/64], [4/64, 20/64], [4/64, 32/64], [0/64, 32/64]],
+          top:    [[4/64, 16/64], [8/64, 16/64], [8/64, 20/64], [4/64, 20/64]],
+          bottom: [[8/64, 16/64], [12/64, 16/64], [12/64, 20/64], [8/64, 20/64]],
+          front:  [[4/64, 20/64], [8/64, 20/64], [8/64, 32/64], [4/64, 32/64]],
+          back:   [[12/64, 20/64], [16/64, 20/64], [16/64, 32/64], [12/64, 32/64]]
+        },
+        outer: {
+          // Right leg outer layer at position (0, 32) in the texture
+          right:  [[4/64, 36/64], [8/64, 36/64], [8/64, 48/64], [4/64, 48/64]],
+          left:   [[0/64, 36/64], [4/64, 36/64], [4/64, 48/64], [0/64, 48/64]],
+          top:    [[4/64, 32/64], [8/64, 32/64], [8/64, 36/64], [4/64, 36/64]],
+          bottom: [[8/64, 32/64], [12/64, 32/64], [12/64, 36/64], [8/64, 36/64]],
+          front:  [[4/64, 36/64], [8/64, 36/64], [8/64, 48/64], [4/64, 48/64]],
+          back:   [[12/64, 36/64], [16/64, 36/64], [16/64, 48/64], [12/64, 48/64]]
+        }
       },
       leftLeg: {
-        // Left leg (4x12x4)
-        right:  [[20/64, 52/64], [24/64, 52/64], [24/64, 64/64], [20/64, 64/64]],
-        left:   [[16/64, 52/64], [20/64, 52/64], [20/64, 64/64], [16/64, 64/64]],
-        top:    [[20/64, 48/64], [24/64, 48/64], [24/64, 52/64], [20/64, 52/64]],
-        bottom: [[24/64, 48/64], [28/64, 48/64], [28/64, 52/64], [24/64, 52/64]],
-        front:  [[20/64, 52/64], [24/64, 52/64], [24/64, 64/64], [20/64, 64/64]],
-        back:   [[28/64, 52/64], [32/64, 52/64], [32/64, 64/64], [28/64, 64/64]]
+        inner: {
+          // Left leg (4x12x4)
+          right:  [[20/64, 52/64], [24/64, 52/64], [24/64, 64/64], [20/64, 64/64]],
+          left:   [[16/64, 52/64], [20/64, 52/64], [20/64, 64/64], [16/64, 64/64]],
+          top:    [[20/64, 48/64], [24/64, 48/64], [24/64, 52/64], [20/64, 52/64]],
+          bottom: [[24/64, 48/64], [28/64, 48/64], [28/64, 52/64], [24/64, 52/64]],
+          front:  [[20/64, 52/64], [24/64, 52/64], [24/64, 64/64], [20/64, 64/64]],
+          back:   [[28/64, 52/64], [32/64, 52/64], [32/64, 64/64], [28/64, 64/64]]
+        },
+        outer: {
+          // Left leg outer layer at position (0, 48) in the texture
+          right:  [[4/64, 52/64], [8/64, 52/64], [8/64, 64/64], [4/64, 64/64]],
+          left:   [[0/64, 52/64], [4/64, 52/64], [4/64, 64/64], [0/64, 64/64]],
+          top:    [[4/64, 48/64], [8/64, 48/64], [8/64, 52/64], [4/64, 52/64]],
+          bottom: [[8/64, 48/64], [12/64, 48/64], [12/64, 52/64], [8/64, 52/64]],
+          front:  [[4/64, 52/64], [8/64, 52/64], [8/64, 64/64], [4/64, 64/64]],
+          back:   [[12/64, 52/64], [16/64, 52/64], [16/64, 64/64], [12/64, 64/64]]
+        }
       }
     };
     
     const mapping = uvMappings[partName];
     if (mapping) {
-      const uvArray = [];
-      // Box geometry has 6 faces, each face has 2 triangles (4 vertices)
-      // Order: right, left, top, bottom, front, back
-      const faceOrder = ['right', 'left', 'top', 'bottom', 'front', 'back'];
-      
-      faceOrder.forEach(face => {
-        const coords = mapping[face];
-        if (coords) {
-          // Triangle 1: 0, 1, 2
-          uvArray.push(coords[0][0], coords[0][1]);
-          uvArray.push(coords[1][0], coords[1][1]);
-          uvArray.push(coords[3][0], coords[3][1]);
-          
-          // Triangle 2: 1, 2, 3
-          uvArray.push(coords[1][0], coords[1][1]);
-          uvArray.push(coords[2][0], coords[2][1]);
-          uvArray.push(coords[3][0], coords[3][1]);
-        }
-      });
-      
-      geometry.setAttribute('uv', new Float32BufferAttribute(uvArray, 2));
+      const layer = isOuter ? mapping.outer : mapping.inner;
+      this.setUVs(geometry, layer);
     }
-    
-    geometry.attributes.uv.needsUpdate = true;
   }
   
   setAutoRotate(enabled) {
