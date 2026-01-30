@@ -67,9 +67,7 @@ async function combineSkinLayers(baseSkinBuffer, overlayBuffer = null) {
           const overlayUrl = bufferToObjectUrl(overlayBuffer);
           
           overlayImg.onload = () => {
-            // Draw only the bottom half of the overlay (rows 32-63) to the bottom half of canvas
-            // The overlay should be placed in rows 32-63 as per Minecraft skin format
-            ctx.drawImage(overlayImg, 0, 32, 64, 32, 0, 32, 64, 32);
+            ctx.drawImage(overlayImg, 0, 0, 64, 64);
             URL.revokeObjectURL(overlayUrl);
             
             // Convert to ArrayBuffer for consistency
@@ -798,9 +796,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   regenBtn.addEventListener('click', async () => {
     if (confirm('Möchten Sie alle Daten löschen und neu generieren? Dies kann nicht rückgängig gemacht werden.')) {
-      // Clear ALL localStorage (including comments) and reload the page
-      // This completely resets the application to a fresh state
-      localStorage.clear();
+      // Clear only the application-specific localStorage keys
+      // DO NOT clear comments - they should be preserved
+      localStorage.removeItem('multiNotizenV5');
+      // Reload the page
       location.reload();
     }
   });
