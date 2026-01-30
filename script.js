@@ -47,29 +47,33 @@ async function dataURLToArrayBuffer(dataURL) {
 async function combineSkinLayers(baseSkinBuffer, overlayBuffer = null) {
   return new Promise((resolve, reject) => {
     try {
-      const canvas = document.createElement('canvas');
-      canvas.width = 64;
-      canvas.height = 64;
-      const ctx = canvas.getContext('2d');
-
-      // Load base skin
+      // Load base skin first to determine dimensions
       const baseImg = new Image();
       const baseUrl = bufferToObjectUrl(baseSkinBuffer);
       
       baseImg.onload = () => {
-        // Draw base skin
-        ctx.drawImage(baseImg, 0, 0, 64, 64);
+        // Use actual image dimensions, not hardcoded 64x64
+        const width = baseImg.width;
+        const height = baseImg.height;
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d', { alpha: true });
+        
+        // Draw base skin at full resolution
+        ctx.drawImage(baseImg, 0, 0, width, height);
         URL.revokeObjectURL(baseUrl);
         
-        // If overlay exists, draw it on top
+        // If overlay exists, draw it on top with proper alpha blending
         if (overlayBuffer) {
           const overlayImg = new Image();
           const overlayUrl = bufferToObjectUrl(overlayBuffer);
           
           overlayImg.onload = () => {
-            // Draw only the bottom half of the overlay (rows 32-63) to the bottom half of canvas
-            // The overlay should be placed in rows 32-63 as per Minecraft skin format
-            ctx.drawImage(overlayImg, 0, 32, 64, 32, 0, 32, 64, 32);
+            // Draw the full overlay on top with alpha blending
+            // This preserves transparency in the overlay layer
+            ctx.drawImage(overlayImg, 0, 0, width, height);
             URL.revokeObjectURL(overlayUrl);
             
             // Convert to ArrayBuffer for consistency
@@ -90,7 +94,7 @@ async function combineSkinLayers(baseSkinBuffer, overlayBuffer = null) {
           
           overlayImg.src = overlayUrl;
         } else {
-          // No overlay, return ArrayBuffer of base skin
+          // No overlay, convert base skin to ArrayBuffer
           canvas.toBlob(async (blob) => {
             if (!blob) {
               reject(new Error('Failed to create blob'));
