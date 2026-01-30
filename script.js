@@ -71,6 +71,13 @@ async function combineSkinLayers(baseSkinBuffer, overlayBuffer = null) {
           const overlayUrl = bufferToObjectUrl(overlayBuffer);
           
           overlayImg.onload = () => {
+            // Validate overlay dimensions match base skin
+            if (overlayImg.width !== width || overlayImg.height !== height) {
+              URL.revokeObjectURL(overlayUrl);
+              reject(new Error(`Overlay dimensions (${overlayImg.width}x${overlayImg.height}) do not match base skin (${width}x${height})`));
+              return;
+            }
+            
             // Draw the full overlay on top with alpha blending
             // This preserves transparency in the overlay layer
             ctx.drawImage(overlayImg, 0, 0, width, height);
