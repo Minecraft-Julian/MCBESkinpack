@@ -74,7 +74,7 @@ async function combineSkinLayers(baseSkinBuffer, overlayBuffer = null) {
             // Validate overlay dimensions match base skin
             if (overlayImg.width !== width || overlayImg.height !== height) {
               URL.revokeObjectURL(overlayUrl);
-              reject(new Error(`Overlay dimensions (${overlayImg.width}x${overlayImg.height}) do not match base skin (${width}x${height})`));
+              reject(new Error(`Overlay-Dimensionen (${overlayImg.width}x${overlayImg.height}) stimmen nicht mit Basis-Skin (${width}x${height}) überein`));
               return;
             }
             
@@ -86,7 +86,7 @@ async function combineSkinLayers(baseSkinBuffer, overlayBuffer = null) {
             // Convert to ArrayBuffer for consistency
             canvas.toBlob(async (blob) => {
               if (!blob) {
-                reject(new Error('Failed to create blob'));
+                reject(new Error('Fehler beim Erstellen des Blobs'));
                 return;
               }
               const arrayBuffer = await blob.arrayBuffer();
@@ -104,7 +104,7 @@ async function combineSkinLayers(baseSkinBuffer, overlayBuffer = null) {
           // No overlay, convert base skin to ArrayBuffer
           canvas.toBlob(async (blob) => {
             if (!blob) {
-              reject(new Error('Failed to create blob'));
+              reject(new Error('Fehler beim Erstellen des Blobs'));
               return;
             }
             const arrayBuffer = await blob.arrayBuffer();
